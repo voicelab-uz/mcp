@@ -1,0 +1,19 @@
+name = "voicelab-mcp"
+main = "dist/worker.js"
+compatibility_date = "2024-01-01"
+account_id = "ac52eda10a0df089ff1d6052087b5367"
+
+[observability]
+enabled = true
+
+# Route configuration - set up custom domain in Cloudflare Dashboard
+# routes = [{ pattern = "mcp.voicelab.uz/*", custom_domain = true }]
+
+# For initial deployment, use workers.dev subdomain
+# Then configure custom domain mcp.voicelab.uz in dashboard
+
+[env.production]
+name = "voicelab-mcp"
+
+[env.staging]
+name = "voicelab-mcp-staging"

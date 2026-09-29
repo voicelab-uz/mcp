@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "voicelab": {
+      "command": "npx",
+      "args": ["@voicelab/mcp"],
+      "env": {
+        "VOICELAB_API_KEY": "${VOICELAB_API_KEY}"
+      }
+    }
+  }
+}

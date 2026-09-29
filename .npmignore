@@ -1,0 +1,12 @@
+src/
+tsconfig.json
+*.test.ts
+*.test.js
+smoke-test.ts
+smoke-test.js
+e2e-test.ts
+e2e-test.js
+.env
+.DS_Store
+uploads/
+scripts/

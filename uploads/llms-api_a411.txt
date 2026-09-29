@@ -1,0 +1,3613 @@
+# VoiceLab API documentation for AI agents
+
+Complete reference for every API documented on this site: text-to-speech, speech-to-text, realtime TTS/STT, voice discovery, Voice Isolator, LLM completions, API-key management, analytics and request logs.
+
+Website: https://voicelab.uz
+API base URL: https://api.voicelab.uz
+Human documentation: https://docs.voicelab.uz
+
+This file includes endpoint inventory, authentication, permissions, request parameters, response examples, limits, polling and error handling. It is generated from the canonical /api/ pages on every docs build. Start with the compact [llms.txt](https://docs.voicelab.uz/llms.txt) index and [AGENTS.md](https://docs.voicelab.uz/AGENTS.md) instructions; each API page also has a Markdown link in that index. Dashboard-only or operator routes outside the documented developer contract are not implied to be public APIs.
+
+## Credentials
+
+Product REST routes under /v1 use a server-side developer API key: Authorization: Bearer vlk_.... Account API-key management and analytics use a user access JWT. Dashboard /api/v1/voice-isolations and Ask /api/v1/llm/* and /api/v1/chats/* routes also remain JWT-only. Developer LLM routes use llm:read and llm:write scopes and token-based credit billing.
+
+Both realtime STT and TTS support a service-bound ticket from POST /v1/ticket (required transport=websocket and service=stt or tts; success 201) or the server-side xvl-api-key handshake header, never both. Never put a long-lived API key in browser code, a WebSocket URL, model prompts or logs. Do not forward API credentials to signed audio storage URLs.
+
+## Official SDKs
+
+- Python: pip install voicelab-sdk — https://pypi.org/project/voicelab-sdk/
+- TypeScript: npm install @voicelab/sdk — https://www.npmjs.com/package/@voicelab/sdk
+- SDK guide: https://docs.voicelab.uz/libraries/sdk
+- Agent workflows: https://docs.voicelab.uz/libraries/for-agents
+
+Use the raw HTTP contracts below when an SDK does not expose the required operation. Examples of SDK availability do not imply that every documented endpoint has an SDK helper.
+
+## Documentation index
+
+- [VoiceLab API](https://docs.voicelab.uz/api/)
+- [API usage analytics and request logs](https://docs.voicelab.uz/api/analytics)
+- [Authentication and API keys](https://docs.voicelab.uz/api/authentication)
+- [Errors, limits, and security](https://docs.voicelab.uz/api/errors)
+- [LLM API](https://docs.voicelab.uz/api/llm)
+- [Realtime STT over WebSocket](https://docs.voicelab.uz/api/realtime-stt)
+- [Speech-to-Text (STT)](https://docs.voicelab.uz/api/stt)
+- [Text to Speech](https://docs.voicelab.uz/api/tts)
+- [Voice Isolator](https://docs.voicelab.uz/api/voice-isolator)
+- [Voices and TTS capabilities](https://docs.voicelab.uz/api/voices)
+
+## Endpoint inventory
+
+| Method | URL | Credential | Reference |
+| --- | --- | --- | --- |
+| GET | `https://api.voicelab.uz/api/v1/account/analytics` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/analytics) |
+| GET | `https://api.voicelab.uz/api/v1/account/request-logs` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/analytics) |
+| GET | `https://api.voicelab.uz/api/v1/account/api-key-permissions` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/authentication) |
+| GET | `https://api.voicelab.uz/api/v1/account/api-key-scopes` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/authentication) |
+| POST | `https://api.voicelab.uz/api/v1/account/api-keys` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/authentication) |
+| GET | `https://api.voicelab.uz/api/v1/account/api-keys?limit=50&cursor=<opaque>` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/authentication) |
+| PATCH | `https://api.voicelab.uz/api/v1/account/api-keys/{key_id}` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/authentication) |
+| POST | `https://api.voicelab.uz/api/v1/account/api-keys/{key_id}/revoke` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/authentication) |
+| DELETE | `https://api.voicelab.uz/api/v1/account/api-keys/{key_id}` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/authentication) |
+| GET | `https://api.voicelab.uz/v1/models` | `Bearer <VOICELAB_API_KEY>` | [Contract](https://docs.voicelab.uz/api/llm) |
+| POST | `https://api.voicelab.uz/v1/chat/completions` | `Bearer <VOICELAB_API_KEY>` | [Contract](https://docs.voicelab.uz/api/llm) |
+| GET | `https://api.voicelab.uz/v1/llm/requests/{id}` | `Bearer <VOICELAB_API_KEY>` | [Contract](https://docs.voicelab.uz/api/llm) |
+| POST | `https://api.voicelab.uz/v1/ticket` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/realtime-stt) |
+| WSS | `wss://api.voicelab.uz/v1/stt/stream?ticket=<short-lived-ticket>` | `See reference` | [Contract](https://docs.voicelab.uz/api/realtime-stt) |
+| POST | `https://api.voicelab.uz/v1/stt` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/stt) |
+| GET | `https://api.voicelab.uz/v1/stt/transcriptions?limit=10&cursor=<opaque>` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/stt) |
+| GET | `https://api.voicelab.uz/v1/stt/transcriptions/{transcription_id}` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/stt) |
+| PATCH | `https://api.voicelab.uz/v1/stt/transcriptions/{transcription_id}` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/stt) |
+| PUT | `https://api.voicelab.uz/v1/stt/transcriptions/{transcription_id}/editor` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/stt) |
+| DELETE | `https://api.voicelab.uz/v1/stt/transcriptions/{transcription_id}` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/stt) |
+| GET | `https://api.voicelab.uz/v1/stt/transcriptions/{transcription_id}/export?format=json` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/stt) |
+| POST | `https://api.voicelab.uz/v1/tts` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/tts) |
+| GET | `https://api.voicelab.uz/v1/tts/languages` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/tts) |
+| GET | `https://api.voicelab.uz/v1/tts/generations?limit=30&cursor=<opaque>` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/tts) |
+| GET | `https://api.voicelab.uz/v1/tts/generations/{generation_id}` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/tts) |
+| DELETE | `https://api.voicelab.uz/v1/tts/generations/{generation_id}` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/tts) |
+| WSS | `wss://api.voicelab.uz/v1/tts/stream` | `xvl-api-key: vlk_...` | [Contract](https://docs.voicelab.uz/api/tts) |
+| POST | `https://api.voicelab.uz/v1/voice-isolations` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/voice-isolator) |
+| POST | `https://api.voicelab.uz/v1/voice-isolations/batch` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/voice-isolator) |
+| GET | `https://api.voicelab.uz/v1/voice-isolations` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/voice-isolator) |
+| GET | `https://api.voicelab.uz/v1/voice-isolations/{id}` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/voice-isolator) |
+| DELETE | `https://api.voicelab.uz/v1/voice-isolations/{id}` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/voice-isolator) |
+| POST | `https://api.voicelab.uz/v1/voice-isolations/{id}/exports` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/voice-isolator) |
+| GET | `https://api.voicelab.uz/v1/voice-isolations/{id}/exports/{format}` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/voice-isolator) |
+| GET | `https://api.voicelab.uz/v1/voices?language=en` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/voices) |
+
+---
+
+Source: https://docs.voicelab.uz/api/
+
+# VoiceLab API
+
+The VoiceLab API lets your server generate speech, transcribe audio, remove
+background noise, generate LLM completions, list voices, and open realtime TTS or STT connections.
+
+This guide is for server-to-server integrations. It uses API keys, not browser
+sessions. Keep your API key on your server and never put it in frontend code.
+
+## Base URL
+
+Production:
+
+```text
+https://api.voicelab.uz
+```
+
+The public developer API uses the `/v1` prefix. For example:
+
+```text
+POST https://api.voicelab.uz/v1/tts
+```
+
+## Choose the right credential
+
+There are two different credentials in VoiceLab:
+
+| Credential | Used for | Example |
+| --- | --- | --- |
+| User access JWT | VoiceLab website and API-key management | `Authorization: Bearer eyJ...` |
+| Developer API key | Your application calling LLM, TTS, STT, Voice Isolator, voices, and realtime ticket endpoints | `Authorization: Bearer vlk_...` |
+| Realtime ticket | One short-lived WebSocket connection | `?ticket=eyJ...` |
+
+Do not send a user JWT to `/v1/tts`, `/v1/stt`, or `/v1/voices`. Do not send a
+long-lived API key in a WebSocket URL. The only value allowed in that URL is a
+short-lived ticket returned by `POST /v1/ticket`.
+
+Voice Isolator developer requests use an API key at `/v1/voice-isolations`.
+The dashboard routes at `/api/v1/voice-isolations` require a user JWT.
+
+## API surface
+
+Create and manage keys with the signed-in dashboard:
+
+| Method | Endpoint | Credential |
+| --- | --- | --- |
+| `GET` | `/api/v1/account/api-key-permissions` | User JWT |
+| `GET` | `/api/v1/account/api-key-scopes` | User JWT |
+| `POST` | `/api/v1/account/api-keys` | User JWT |
+| `GET` | `/api/v1/account/api-keys` | User JWT |
+| `PATCH` | `/api/v1/account/api-keys/{key_id}` | User JWT |
+| `POST` | `/api/v1/account/api-keys/{key_id}/revoke` | User JWT |
+| `DELETE` | `/api/v1/account/api-keys/{key_id}` | User JWT |
+
+Use the generated key for application services:
+
+| Feature | Endpoints | Permission |
+| --- | --- | --- |
+| LLM models | `GET /v1/models` | `llm:read` |
+| Chat completion | `POST /v1/chat/completions` | `llm:write` |
+| LLM request status | `GET /v1/llm/requests/{id}` | `llm:read` |
+| TTS capabilities | `GET /v1/tts/languages` | TTS read |
+| Voices | `GET /v1/voices?language={code}` | Voices read |
+| TTS generation | `POST /v1/tts` | TTS write |
+| TTS history | `GET /v1/tts/generations`, `GET /v1/tts/generations/{id}` | TTS read |
+| Delete TTS audio | `DELETE /v1/tts/generations/{id}` | TTS write |
+| STT transcription | `POST /v1/stt` | STT write |
+| STT history and files | `GET /v1/stt/transcriptions...` | STT read |
+| Edit or delete STT | `PATCH`, `PUT`, `DELETE /v1/stt/transcriptions/{id}` | STT write |
+| Voice isolation | `POST /v1/voice-isolations`, `POST /v1/voice-isolations/batch` | `audio_isolation:write` |
+| Isolation history and results | `GET /v1/voice-isolations`, `GET /v1/voice-isolations/{id}` | `audio_isolation:read` |
+| Hide isolation | `DELETE /v1/voice-isolations/{id}` | `audio_isolation:write` |
+| Create isolation export | `POST /v1/voice-isolations/{id}/exports` | `audio_isolation:write` |
+| Get isolation export | `GET /v1/voice-isolations/{id}/exports/{format}` | `audio_isolation:read` |
+| Realtime TTS | `POST /v1/ticket`, then `GET /v1/tts/stream` | TTS realtime |
+| Realtime STT | `POST /v1/ticket`, then `GET /v1/stt/stream` | STT realtime |
+
+Grant **Voice Isolator → Access** for the complete upload, polling, and export
+workflow. This enables both isolation scopes. Existing restricted keys need
+this permission added explicitly. See [Voice Isolator](https://docs.voicelab.uz/api/voice-isolator).
+
+Grant `llm: access` for model discovery, completions, and request status.
+Developer LLM requests use API keys and token-based credits. Ask's
+`/api/v1/llm/*` and `/api/v1/chats/*` routes remain JWT-only and uncharged.
+See [LLM API](https://docs.voicelab.uz/api/llm).
+
+Analytics and request logs are dashboard views. They use a user JWT and show
+only traffic authenticated with developer API keys; website JWT traffic is not
+included. See [analytics.md](https://docs.voicelab.uz/api/analytics).
+
+## Quick start
+
+### 1. Create an API key
+
+Use a user access JWT from the VoiceLab dashboard to create a key. The secret
+is returned only in this response.
+
+```bash
+curl -X POST 'https://api.voicelab.uz/api/v1/account/api-keys' \
+  -H 'Authorization: Bearer USER_ACCESS_JWT' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "name": "My production integration",
+    "permissions": {
+      "text_to_speech": "access",
+      "speech_to_text": "access",
+      "voices": "read"
+    },
+    "expires_at": null,
+    "restrict_key": true,
+    "auto_disable_if_leaked": true
+  }'
+```
+
+Save `data.secret` immediately. It cannot be recovered later.
+
+### 2. Store the key on your server
+
+```bash
+export VOICELAB_API_KEY='vlk_replace_with_the_secret_from_creation'
+```
+
+For production, use your deployment secret manager instead of a shell file.
+
+### 3. Generate speech
+
+```bash
+curl -fS 'https://api.voicelab.uz/v1/tts' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: hello-world-001' \
+  -d '{
+    "text": "Hello from VoiceLab.",
+    "language": "en",
+    "voice_id": "voice_01J9NEUTRAL0000000000000001",
+    "speed": 1
+  }' \
+  -o hello.wav
+```
+
+The current output is a mono 24 kHz WAV file. The available model and
+languages are returned by `/v1/tts/languages`; do not hardcode the catalog.
+
+### 4. Transcribe audio
+
+```bash
+curl -fS 'https://api.voicelab.uz/v1/stt' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY" \
+  -H 'Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000' \
+  -F 'audio=@meeting.wav;type=audio/wav' \
+  -F 'language=en' \
+  -F 'include_speakers=false'
+```
+
+Read the full request and response contracts in [stt.md](https://docs.voicelab.uz/api/stt).
+
+## Common response rules
+
+- JSON responses use `Content-Type: application/json`.
+- Resource timestamps are RFC 3339 UTC strings, for example `2026-08-16T12:30:00Z`. LLM completion `created` uses Unix seconds; model `created` is `0`.
+- IDs, cursors, tickets, and URLs are opaque. Do not parse or construct them.
+- Standard resource responses include `request_id`. LLM success bodies use their own shapes; completion headers include `X-LLM-Request-ID`. LLM streaming uses SSE. See [LLM response formats](https://docs.voicelab.uz/api/llm#json-response).
+- TTS generation and STT export endpoints return files. Voice Isolator returns
+  JSON resources with temporary signed URLs for completed audio and exports.
+- Private audio URLs are short-lived signed URLs. Do not store them as
+  permanent links.
+
+## Error response
+
+Standard JSON errors use this shape:
+
+```json
+{
+  "message": "This API key is not allowed to perform this operation.",
+  "error": {
+    "code": "insufficient_scope"
+  },
+  "request_id": "req_01J..."
+}
+```
+
+[LLM handler errors](https://docs.voicelab.uz/api/llm#errors) put the message in `error.message` and
+include `error.type`. Shared authentication errors can still use the standard
+shape shown above. Handle both envelopes when integrating LLM endpoints.
+
+Some validation errors also contain `error.fields`:
+
+```json
+{
+  "message": "Check the highlighted fields.",
+  "error": {
+    "code": "validation_error",
+    "fields": {
+      "language": "Choose a supported language."
+    }
+  },
+  "request_id": "req_01J..."
+}
+```
+
+Always log `request_id` in your application. Never log an API key, realtime
+ticket, audio bytes, or signed audio URL.
+
+## Documents
+
+
+  - [Authentication and API keys](https://docs.voicelab.uz/api/authentication)
+  - [LLM](https://docs.voicelab.uz/api/llm)
+  - [Voices and capabilities](https://docs.voicelab.uz/api/voices)
+  - [Text to Speech](https://docs.voicelab.uz/api/tts)
+  - [Speech to Text](https://docs.voicelab.uz/api/stt)
+  - [Voice Isolator](https://docs.voicelab.uz/api/voice-isolator)
+  - [Realtime TTS](https://docs.voicelab.uz/api/tts#realtime-speech)
+  - [Realtime STT](https://docs.voicelab.uz/api/realtime-stt)
+  - [Analytics and logs](https://docs.voicelab.uz/api/analytics)
+  - [Errors and limits](https://docs.voicelab.uz/api/errors)
+
+---
+
+Source: https://docs.voicelab.uz/api/analytics
+
+# API usage analytics and request logs
+
+Analytics are for the VoiceLab developer dashboard. They are not authenticated
+with a developer API key. Use the user's access JWT:
+
+```http
+Authorization: Bearer <USER_ACCESS_JWT>
+```
+
+These endpoints intentionally show only requests authenticated with a
+developer API key. Activity from the VoiceLab website using a user JWT is not
+written to these developer analytics tables and does not appear here.
+
+## Analytics
+
+**GET https://api.voicelab.uz/api/v1/account/analytics**
+
+Return aggregate VoiceLab API usage for the signed-in account.
+
+Authentication: `Bearer <USER_ACCESS_JWT>`.
+
+Query parameters:
+
+| Parameter | Required | Rules |
+| --- | --- | --- |
+| `from` | no | RFC3339 timestamp or `YYYY-MM-DD`; defaults to seven days ago |
+| `to` | no | RFC3339 timestamp or `YYYY-MM-DD`; defaults to now; end date is exclusive |
+| `granularity` | no | `day` (default) or `hour`; hourly windows are at most 31 days |
+
+The total window cannot be longer than 90 days. Times are interpreted and
+returned in UTC.
+
+Example:
+
+```bash
+curl -fS 'https://api.voicelab.uz/api/v1/account/analytics?from=2026-08-01&to=2026-08-16&granularity=day' \
+  -H "Authorization: Bearer $USER_ACCESS_JWT"
+```
+
+Response shape:
+
+```json
+{
+  "period": {
+    "from": "2026-08-01T00:00:00Z",
+    "to": "2026-08-16T00:00:00Z",
+    "timezone": "UTC",
+    "granularity": "day"
+  },
+  "summary": {
+    "total_requests": 113,
+    "successful_requests": 110,
+    "failed_requests": 3,
+    "success_rate": 0.973,
+    "average_latency_ms": 289,
+    "total_characters": 517,
+    "total_duration_ms": 60000,
+    "total_credits": 517,
+    "billable_requests": 110,
+    "total_cost_micros": 85000,
+    "currency": "USD"
+  },
+  "series": [],
+  "status_codes": [
+    {"key":"200","value":110},
+    {"key":"400","value":3}
+  ],
+  "top_routes": [
+    {"key":"/v1/tts","value":80}
+  ],
+  "product_usage": [],
+  "request_id": "req_01J..."
+}
+```
+
+The arrays contain the backend's current analytics breakdown objects. Treat
+unknown fields and future product entries as forward-compatible.
+
+## Voice Isolator usage
+
+[Voice Isolator](https://docs.voicelab.uz/api/voice-isolator) reports the product identifier
+`voice_enhancer`. Successful model completion records billable usage against
+the submitting API key in the same transaction as the job completion and credit
+settlement. Failed jobs are not billed. Polling and export requests do not rerun
+the models or add processing charges.
+
+The upload response is asynchronous. A `202` request log confirms admission,
+not successful model completion or final billing. HTTP requests follow the
+normal developer request-log path; billable usage is recorded when processing
+completes. Dashboard jobs authenticated with a user JWT do not appear in these
+developer analytics.
+
+## LLM usage
+
+[LLM completions](https://docs.voicelab.uz/api/llm) record settled usage with product `llm` and
+operation `chat.completions`. Token details and exact fractional credit units
+are available through the [LLM request-status endpoint](https://docs.voicelab.uz/api/llm#get-request-status).
+A failed generation can still be billed when usage is known.
+
+An HTTP `200` for an SSE stream does not prove successful completion or
+settlement. Retain `X-LLM-Request-ID` and inspect its status if the stream ends
+without `[DONE]`. Developer prompts, completions, reasoning, and tool contents
+are not saved in chat tables or request logs. Ask activity authenticated with a
+JWT remains separate from developer LLM usage.
+
+## Request logs
+
+**GET https://api.voicelab.uz/api/v1/account/request-logs**
+
+List individual developer API requests for troubleshooting.
+
+Authentication: `Bearer <USER_ACCESS_JWT>`.
+
+Supported filters:
+
+```text
+from=2026-08-01
+to=2026-08-16
+limit=50
+cursor=<opaque cursor>
+status=500
+method=POST
+route=/v1/tts
+api_key_id=key_01J...
+```
+
+`status` and `code` are accepted as aliases. `limit` defaults to 50 and must
+be 1–100. Use `next_cursor` unchanged for the next request.
+
+Example response:
+
+```json
+{
+  "items": [
+    {
+      "request_id": "req_01J...",
+      "timestamp": "2026-08-16T12:00:00Z",
+      "method": "POST",
+      "route": "/v1/tts",
+      "status_code": 200,
+      "latency_ms": 289,
+      "request_bytes": 120,
+      "response_bytes": 184320,
+      "api_key_id": "key_01J...",
+      "api_key_prefix": "vlk_",
+      "usage": {
+        "product": "tts",
+        "operation": "generate",
+        "characters": 24,
+        "duration_ms": 1180,
+        "credits": 24,
+        "billable": true
+      }
+    }
+  ],
+  "next_cursor": null,
+  "period": {
+    "from": "2026-08-01T00:00:00Z",
+    "to": "2026-08-16T00:00:00Z",
+    "timezone": "UTC",
+    "granularity": "day"
+  },
+  "request_id": "req_01J..."
+}
+```
+
+`usage` is optional. It can include `ttfb_ms`, `cost_micros`, and `currency` in
+addition to the fields shown above. The raw API key, authorization header,
+transcript, text body, audio bytes, and signed storage URL are never exposed
+in request logs.
+
+## Analytics errors
+
+| Status | Code | Meaning |
+| ---: | --- | --- |
+| `400` | `invalid_analytics_window`, `invalid_pagination`, `invalid_cursor`, `invalid_filter` | Correct the query parameters |
+| `401` | `session_expired` | Refresh the dashboard user session |
+| `500` | `internal_error` | Retry and keep `request_id` for support |
+| `503` | `analytics_unavailable` | Analytics storage is temporarily unavailable |
+
+---
+
+Source: https://docs.voicelab.uz/api/authentication
+
+# Authentication and API keys
+
+Create scoped server credentials, manage their lifecycle, and mint short-lived tickets for realtime connections.
+
+## API keys are server credentials
+
+Every developer API request uses this header:
+
+```http
+Authorization: Bearer vlk_<your-secret>
+```
+
+API keys are intended for backend jobs, CLI tools, and private services. Do
+not expose them in a browser bundle, mobile app, public Git repository, URL,
+or client-side local storage. If a key is exposed, revoke it immediately and
+create a replacement.
+
+The backend stores only a hash of the secret. The plaintext secret is returned
+once, when the key is created.
+
+## Permission model
+
+Use `GET /api/v1/account/api-key-permissions` to render the dashboard's key
+editor. Only entries with `implemented: true` should be offered for selection:
+
+| Permission | Levels | Gives access to |
+| --- | --- | --- |
+| `text_to_speech` | `none`, `read`, `write`, `access` | TTS generation and/or TTS history |
+| `tts_realtime` | `none`, `access` | Realtime TTS tickets and WebSocket |
+| `speech_to_text` | `none`, `read`, `write`, `access` | STT transcription and/or STT history |
+| `stt_realtime` | `none`, `access` | Realtime STT tickets and WebSocket |
+| `audio_isolation` | `none`, `read`, `write`, `access` | Voice Isolator jobs, retained audio, and exports |
+| `llm` | `none`, `read`, `write`, `access` | Model discovery, chat completions, and LLM request status |
+| `voices` | `none`, `read` | Voice catalog |
+
+Meaning of levels:
+
+- `none`: no access; omit it from the saved map or send it as `none`.
+- `read`: list, inspect, or download existing resources. For Voice Isolator,
+  requesting a new export conversion requires write access.
+- `write`: create, edit, or delete resources.
+- `access`: both read and write for TTS, STT, Voice Isolator, and LLM, or the complete access offered by
+  a realtime/voices permission.
+
+The permission endpoint also returns planned permissions with
+`implemented: false`. Do not enable those in your UI yet. They are catalog
+metadata, not permission to call an endpoint.
+
+The current legacy scope equivalents are:
+
+| Scope | Equivalent permission |
+| --- | --- |
+| `tts:read` | `text_to_speech: read` |
+| `tts:write` | `text_to_speech: write` |
+| `tts:realtime` | `tts_realtime: access` |
+| `stt:read` | `speech_to_text: read` |
+| `stt:write` | `speech_to_text: write` |
+| `stt:realtime` | `stt_realtime: access` |
+| `llm:read` | `llm: read` |
+| `llm:write` | `llm: write` |
+| `voices:read` | `voices: read` |
+| `audio_isolation:read` | `audio_isolation: read` |
+| `audio_isolation:write` | `audio_isolation: write` |
+
+Use `permissions` for new integrations. `scopes` remains available for
+backwards compatibility, but a request must not contain both.
+
+## LLM access
+
+For [LLM completions](https://docs.voicelab.uz/api/llm), grant `{"llm":"access"}` in the permission
+map. Read access lists models and retrieves account-scoped request status.
+Write access generates completions. A write-only key cannot read model prices
+or inspect request usage; grant both for the complete workflow.
+
+Existing unrestricted keys work. Restricted keys need an explicit LLM grant.
+When editing a key, preserve its other required permissions: `permissions`
+replaces the complete map. The compatibility scopes are `llm:read` and
+`llm:write`.
+
+Developer LLM endpoints require a server-side API key and spend credits.
+Platform JWTs authorize Ask's `/api/v1/llm/*` and `/api/v1/chats/*` routes,
+which remain uncharged; they cannot authorize developer completions.
+
+## Voice Isolator access
+
+For the complete [Voice Isolator workflow](https://docs.voicelab.uz/api/voice-isolator), grant
+`audio_isolation: access` in the permission map. Read access lists jobs,
+retrieves their status, and downloads available audio or exports. Write access
+submits files or batches, requests new export conversions, and hides jobs.
+A write-only key cannot poll results.
+
+Restricted keys need an explicit grant; existing keys do not gain this permission
+automatically. Unrestricted keys can use all implemented endpoints. Check the
+permission catalog for support before offering Voice Isolator in a key editor.
+The developer routes use `/v1/voice-isolations`; dashboard
+`/api/v1/voice-isolations` routes require a user JWT.
+
+Revoking a key blocks new access but does not cancel accepted jobs. Revoke keys
+referenced by retained jobs instead of permanently deleting them.
+
+## List permission and scope catalogs
+
+These endpoints require a user access JWT, not a developer API key:
+
+**GET https://api.voicelab.uz/api/v1/account/api-key-permissions**
+
+List the current permission catalog for the API-key editor.
+
+Authentication: `Bearer <USER_ACCESS_JWT>`.
+
+**GET https://api.voicelab.uz/api/v1/account/api-key-scopes**
+
+List legacy API-key scopes for backwards compatibility.
+
+Authentication: `Bearer <USER_ACCESS_JWT>`.
+
+Permission response:
+
+```json
+{
+  "data": {
+    "permissions": [
+      {
+        "id": "text_to_speech",
+        "name": "Text to speech",
+        "description": "Read TTS history and generate speech from text.",
+        "levels": ["none", "read", "write", "access"],
+        "implemented": true
+      }
+    ]
+  },
+  "request_id": "req_01J..."
+}
+```
+
+Scope response:
+
+```json
+{
+  "scopes": [
+    {
+      "id": "tts:write",
+      "name": "TTS write",
+      "description": "Create and delete TTS generations."
+    }
+  ],
+  "request_id": "req_01J..."
+}
+```
+
+## Create a key
+
+**POST https://api.voicelab.uz/api/v1/account/api-keys**
+
+Create a scoped developer API key with a user access JWT.
+
+Authentication: `Bearer <USER_ACCESS_JWT>`.
+
+Content-Type: `application/json`.
+
+Example using permissions:
+
+```json
+{
+  "name": "Production speech service",
+  "permissions": {
+    "text_to_speech": "access",
+    "speech_to_text": "access",
+    "tts_realtime": "access",
+    "voices": "read"
+  },
+  "expires_at": null,
+  "restrict_key": true,
+  "credit_limit": null,
+  "allowed_ips": ["203.0.113.10"],
+  "auto_disable_if_leaked": true
+}
+```
+
+Fields:
+
+| Field | Required | Rules |
+| --- | --- | --- |
+| `name` | yes | 1–80 characters; control characters are rejected |
+| `permissions` | no* | Map of supported permission IDs to levels; `{}` clears all access |
+| `scopes` | no* | Legacy array; use this only when `permissions` is absent |
+| `expires_at` | no | Future RFC3339 timestamp or `null` for no expiry |
+| `restrict_key` | no | Defaults to `true` |
+| `credit_limit` | no | Non-negative integer or `null` |
+| `allowed_ips` | no | Up to 100 IPv4, IPv6, or CIDR entries |
+| `auto_disable_if_leaked` | no | Defaults to `true` |
+
+\* A key may be created with no product permissions, but it will not be able
+to call product endpoints. For a useful key, select at least one implemented
+permission.
+
+Legacy request example:
+
+```json
+{
+  "name": "Legacy TTS key",
+  "scopes": ["tts:read", "tts:write", "voices:read"]
+}
+```
+
+Do not send both `permissions` and `scopes`.
+
+`201 Created`:
+
+```json
+{
+  "data": {
+    "key": {
+      "id": "key_01J...",
+      "name": "Production speech service",
+      "masked_key": "vlk_••••••••9x2a",
+      "prefix": "vlk_",
+      "permissions": {
+        "text_to_speech": "access",
+        "speech_to_text": "access",
+        "tts_realtime": "access",
+        "voices": "read"
+      },
+      "scopes": ["tts:read", "tts:write", "tts:realtime", "stt:read", "stt:write", "voices:read"],
+      "created_at": "2026-08-16T12:00:00Z",
+      "last_used_at": null,
+      "expires_at": null,
+      "enabled": true,
+      "revoked_at": null,
+      "restrict_key": true,
+      "credit_limit": null,
+      "allowed_ips": ["203.0.113.10"],
+      "auto_disable_if_leaked": true,
+      "leaked_at": null
+    },
+    "secret": "vlk_<long-secret-returned-once>"
+  },
+  "request_id": "req_01J..."
+}
+```
+
+Show the secret once and ask the user to copy it. It is never returned by
+list, update, or any product endpoint.
+
+## List keys
+
+**GET https://api.voicelab.uz/api/v1/account/api-keys?limit=50&cursor=<opaque>**
+
+List API keys with cursor pagination.
+
+Authentication: `Bearer <USER_ACCESS_JWT>`.
+
+`limit` defaults to 50 and must be 1–100. The response is:
+
+```json
+{
+  "data": {
+    "keys": [
+      {
+        "id": "key_01J...",
+        "name": "Production speech service",
+        "masked_key": "vlk_••••••••9x2a",
+        "enabled": true,
+        "created_at": "2026-08-16T12:00:00Z",
+        "expires_at": null,
+        "revoked_at": null,
+        "permissions": {"text_to_speech": "access"}
+      }
+    ],
+    "next_cursor": null
+  },
+  "request_id": "req_01J..."
+}
+```
+
+## Edit a key
+
+**PATCH https://api.voicelab.uz/api/v1/account/api-keys/{key_id}**
+
+Update an API key's name, permissions, restrictions, or lifecycle settings.
+
+Authentication: `Bearer <USER_ACCESS_JWT>`.
+
+Content-Type: `application/json`.
+
+The body is a partial update:
+
+```json
+{
+  "name": "Production speech service v2",
+  "enabled": true,
+  "expires_at": "2027-08-16T00:00:00Z",
+  "permissions": {
+    "text_to_speech": "access",
+    "tts_realtime": "access",
+    "voices": "read"
+  }
+}
+```
+
+- Omitted fields stay unchanged.
+- `expires_at: null` removes expiry. Omit it to keep the current expiry.
+- `permissions` replaces the complete permission map. Omitted permissions are
+  removed; `{}` removes all permissions.
+- Use either `permissions` or legacy `scopes`, never both.
+- The secret is never returned by `PATCH`.
+- The update is atomic.
+
+`200 OK` returns `{ "data": { "key": { ... } }, "request_id": "..." }`.
+
+## Revoke versus delete
+
+Revoke is the normal emergency or lifecycle action:
+
+**POST https://api.voicelab.uz/api/v1/account/api-keys/{key_id}/revoke**
+
+Immediately stop an API key from authenticating.
+
+Authentication: `Bearer <USER_ACCESS_JWT>`.
+
+`204 No Content` means the key stops authenticating immediately. Its metadata
+and audit history remain available.
+
+Delete is permanent:
+
+**DELETE https://api.voicelab.uz/api/v1/account/api-keys/{key_id}**
+
+Permanently delete an API-key record.
+
+Authentication: `Bearer <USER_ACCESS_JWT>`.
+
+`204 No Content` means the row was deleted. If existing work still references
+the key, the API returns `409 api_key_in_use`; revoke it instead.
+
+## Key-management errors
+
+| Status | Code | Meaning |
+| ---: | --- | --- |
+| `400` | `invalid_json`, `validation_error`, `invalid_pagination` | Request or fields are invalid |
+| `401` | `session_expired` | User JWT is missing, invalid, or expired |
+| `403` | `origin_forbidden` | Browser origin is not allowed for this dashboard action |
+| `404` | `not_found` | Key is not owned by this account |
+| `409` | `api_key_in_use` | Permanent deletion is blocked by existing work |
+| `500` | `internal_error` | Unexpected server error |
+| `503` | `auth_unavailable`, `service_unavailable` | Required service is unavailable |
+
+---
+
+Source: https://docs.voicelab.uz/api/errors
+
+# Errors, limits, and security
+
+Handle stable error envelopes, retry safely, and protect API credentials in production.
+
+## Error envelope
+
+Standard JSON errors follow this shape:
+
+```json
+{
+  "message": "A user-safe explanation.",
+  "error": {
+    "code": "stable_machine_code",
+    "fields": {
+      "language": "Choose a supported language."
+    }
+  },
+  "request_id": "req_01J..."
+}
+```
+
+`error.fields` is optional. Use `error.code` for program logic and show
+`message` only when it is appropriate for your users. Never depend on exact
+wording or parse the message.
+
+LLM handler errors have a different message location:
+
+```json
+{
+  "error": {
+    "message": "LLM usage needs reconciliation. Contact support before making another request.",
+    "type": "request_error",
+    "code": "llm_usage_pending"
+  },
+  "request_id": "req_example"
+}
+```
+
+Shared authentication errors can still use the standard envelope. LLM clients
+must handle both. After SSE starts, an error can arrive inside a data event
+while HTTP status remains `200`. See [LLM errors](https://docs.voicelab.uz/api/llm#errors).
+
+## Common HTTP statuses
+
+| Status | Meaning | What to do |
+| ---: | --- | --- |
+| `200` | Successful response or stream opened | Read the response; LLM SSE must finish with `[DONE]` |
+| `201` | Resource or realtime ticket created | Store the returned ID/ticket |
+| `202` | STT or Voice Isolator work accepted for background processing | Poll the returned resource or export |
+| `204` | Successful request with no body | Mark the resource deleted/revoked |
+| `400` | Malformed JSON, multipart, cursor, or idempotency key | Correct the request |
+| `401` | Missing, invalid, expired, disabled, or revoked credential | Replace or refresh the credential |
+| `402` | Insufficient credits or API-key credit limit | Check the balance and the key's configured limit |
+| `403` | Scope, IP, or origin policy denied the request | Change the key policy; do not retry unchanged |
+| `404` | Resource or feature is not available | Refresh IDs/catalog; do not guess a route |
+| `409` | Idempotency, edit, or resource state conflict | Follow the endpoint-specific recovery |
+| `413` | Body or audio is too large | Upload a smaller payload |
+| `415` | Media type is unsupported | Use a supported audio format |
+| `422` | Unsupported fields, model settings, or audio | Read `error.code` and any `error.fields`; correct the request |
+| `429` | Rate or capacity limit | Wait for `Retry-After` when present |
+| `500` | Unexpected server error | Retry only with the same idempotency key |
+| `503` | Dependency outage or unresolved LLM usage | Inspect the code; `llm_model_temporarily_unavailable` / legacy `llm_usage_pending` require support, otherwise follow endpoint retry rules |
+
+Do not blindly retry `POST` requests without an idempotency key. For TTS,
+STT, and Voice Isolator uploads, retries after a timeout should reuse the same
+key and identical input, including processing options.
+
+For LLM completions, identical retries with the same key return
+`409 request_already_submitted` and `X-LLM-Request-ID`. No response is replayed
+and no new generation starts. Read the original request's status. A changed
+body with the same key returns `409 idempotency_conflict`. See
+[LLM retry rules](https://docs.voicelab.uz/api/llm#idempotency-and-retries).
+
+## Rate limits and backoff
+
+The exact account policy can vary. When the response includes `Retry-After`,
+wait at least that many seconds. For retryable errors, otherwise use exponential backoff with jitter,
+for example 1s, 2s, 4s, then stop after a small number of attempts.
+
+Do not retry:
+
+- `401`, `403`, `404`, or validation `422` without changing the request;
+- an idempotency conflict with the same changed payload;
+- a permanently revoked key;
+- any error explicitly marked `retryable:false`;
+- `llm_model_temporarily_unavailable` or legacy `llm_usage_pending`, which requires
+  support reconciliation rather than waiting for a cooldown.
+
+## Voice Isolator errors and limits
+
+[Voice Isolator](https://docs.voicelab.uz/api/voice-isolator) accepts up to 300 MiB of uploaded audio,
+or that combined total for a batch of 1–4 files. Each file must contain at least
+0.5 seconds of decodable audio. There is no separate maximum recording duration;
+decode resource budgets and processing timeouts still apply.
+
+| Status | Code | Recovery |
+| ---: | --- | --- |
+| `402` | `insufficient_credits` | Add enough account credits for the request |
+| `402` | `api_key_credit_limit` | Check the key limit, recorded billable usage, and pending Voice Isolator reservations |
+| `404` | `voice_isolation_disabled`, `not_found` | Check feature availability and account ownership |
+| `409` | `idempotency_conflict` | Reuse the original input for a retry; use a fresh UUID for changed audio, title, or options |
+| `409` | `audio_not_ready` | Continue polling before requesting an export |
+| `413` | `audio_too_large` | Reduce the uploaded audio size |
+| `422` | `invalid_audio`, `invalid_speech_restoration`, `invalid_restoration_model`, `invalid_export_format` | Correct the audio or options described in the endpoint reference |
+| `429` | `queue_full` | Wait for capacity and respect `Retry-After` |
+| `503` | `voice_isolation_unavailable`, `speech_restoration_unavailable` | Retry after `Retry-After`; changed processing options require a new idempotency key |
+
+A job with `status=completed` may still have a pending MP3 export. Wait for
+`audio_status=completed` and `audio_url` before downloading the default result.
+Refresh the job to get fresh signed URLs, and do not send an API key to storage
+URLs. Deleting a job only hides it from history; it does not erase stored audio
+or cancel accepted work.
+
+## API-key security checklist
+
+- Store keys in a server-side secret manager.
+- Give each service its own key and the smallest permissions it needs.
+- Set `expires_at` for temporary or employee-owned integrations.
+- Set `allowed_ips` for fixed server egress addresses.
+- Keep `restrict_key` and `auto_disable_if_leaked` enabled unless you have a
+  documented reason not to.
+- Revoke a leaked key immediately; do not wait for expiration.
+- Do not put API keys in Git, Docker images, frontend JavaScript, URLs, query
+  strings, analytics events, or exception messages.
+- Treat signed audio URLs and realtime tickets as secrets too.
+- Keep `request_id` when reporting a failure, but never include credentials in
+  support logs.
+
+## Ownership and privacy
+
+Every API-key request is owner-scoped. A key from account A cannot read or
+delete account B's TTS generations, STT transcriptions, voices, or audio.
+
+Audio URLs are short-lived and private. Download the object when needed rather
+than storing the URL permanently. The API never returns provider credentials,
+internal model names, raw upstream responses, or account IDs in normal product
+responses.
+
+## What is not a developer API yet
+
+The following are first-party VoiceLab or operator surfaces, not part of the
+server-to-server API-key contract:
+
+- `/api/v1/account/*` product/profile and voice-cloning workflows, except the
+  API-key management and dashboard analytics endpoints documented here;
+- `/api/v1/voice-isolations*` dashboard JWT routes; use the documented
+  `/v1/voice-isolations` developer API instead;
+- `/api/v1/llm/*` and `/api/v1/chats/*` JWT-only Ask routes; use the [LLM developer API](https://docs.voicelab.uz/api/llm) for server integrations;
+- `/api/v1/voice-agent/*` website/LiveKit voice-agent session routes;
+- `/api/v1/public-preview/*` anonymous preview routes;
+- retired TTS job aliases and retired subtitle list/download aliases;
+- arbitrary LiveKit token generation.
+
+Do not call undocumented routes or rely on the legacy catch-all proxy. A new
+developer capability should be added to the `/v1` API with an explicit scope,
+an owner-scoped contract, idempotency rules where needed, and documentation.
+
+---
+
+Source: https://docs.voicelab.uz/api/llm
+
+# LLM API
+
+Generate text and function calls with a server-side developer API key. Choose a
+model, send your conversation, and receive a JSON completion or an SSE stream.
+Completions spend VoiceLab credits based on token usage. Model discovery and
+request-status lookups are free.
+
+## Authentication
+
+Send `Authorization: Bearer $VOICELAB_API_KEY`. Restricted keys need
+`{"llm":"access"}` in their permission map for the complete workflow.
+The compatibility scopes are `llm:read` for models and request status, and
+`llm:write` for completions. Existing unrestricted keys can use these routes.
+See [API-key permissions](https://docs.voicelab.uz/api/authentication#llm-access).
+
+The developer API uses `/v1`. Ask's `/api/v1/llm/*` and `/api/v1/chats/*`
+routes require a platform JWT and remain uncharged. Developer completions use
+the messages you supply; they do not add Ask's prompts, knowledge, or history.
+
+## List models
+
+**GET https://api.voicelab.uz/v1/models**
+
+List configured, priced models and their effective API limits. Requires llm:read.
+
+Authentication: `Bearer <VOICELAB_API_KEY>`.
+
+```bash
+curl -fS 'https://api.voicelab.uz/v1/models' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY"
+```
+
+The response is an object with `object: "list"` and a `data` array. Each entry
+contains:
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Public model ID to send in a completion request |
+| `object` | `model` |
+| `name`, `description` | Optional display metadata |
+| `parameters`, `context_window` | Optional model parameter count and context capacity |
+| `owned_by` | `voicelab` |
+| `created` | `0`; no model creation timestamp is supplied |
+| `pricing.version`, `pricing.model` | Active price version and public model ID |
+| `pricing.input_usd_cents_per_million_tokens` | Input price in USD cents per million tokens |
+| `pricing.output_usd_cents_per_million_tokens` | Output price in USD cents per million tokens |
+| `pricing.credits_per_usd` | Conversion used for this price version |
+| `limits.max_input_bytes` | Effective serialized messages/tools limit, currently `65536` |
+| `limits.max_output_tokens` | Effective output-token limit, currently `4096` |
+
+Resolve model IDs and prices from this response. The examples below use
+`aisha-comet`; use a model returned for your account. Only configured models
+with active pricing appear. A model's context capacity does not override the
+[endpoint limits](https://docs.voicelab.uz/api/llm#limits).
+
+## Create a chat completion
+
+**POST https://api.voicelab.uz/v1/chat/completions**
+
+Generate a text or function-call completion, billed in credits. Requires llm:write.
+
+Authentication: `Bearer <VOICELAB_API_KEY>`.
+
+Content-Type: `application/json`.
+
+```bash
+curl -fS -D llm-response.headers 'https://api.voicelab.uz/v1/chat/completions' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: hello-turn-001' \
+  -d '{
+    "model": "aisha-comet",
+    "messages": [
+      {"role": "system", "content": "Answer briefly."},
+      {"role": "user", "content": "Salom!"}
+    ],
+    "max_tokens": 128
+  }'
+```
+
+### Request fields
+
+| Field | Required | Rules |
+| --- | --- | --- |
+| `model` | yes | Public ID from `GET /v1/models` |
+| `messages` | yes | 1 to 101 messages with `role` and text `content` |
+| `stream` | no | Boolean; defaults to `false` |
+| `stream_options.include_usage` | no | Set to `true` for a final SSE usage chunk |
+| `max_tokens` | no | Integer from 1 to 4096; defaults to 1024 |
+| `max_completion_tokens` | no | Alias for `max_tokens`; send only one of these fields |
+| `temperature` | no | Number from 0 to 2; model support varies |
+| `top_p` | no | Number from 0 to 1; model support varies |
+| `stop` | no | One string or 1 to 4 strings, each 1 to 200 bytes |
+| `seed` | no | Integer; model support varies |
+| `n` | no | Only `1` is accepted |
+| `tools` | no | Up to 32 function definitions; see [function calls](https://docs.voicelab.uz/api/llm#function-calls) |
+| `tool_choice` | no | `auto`, `none`, `required`, or a supplied function selector |
+| `parallel_tool_calls` | no | Boolean; model support varies |
+| `thinking` | no | Boolean reasoning control; send at most one reasoning control |
+| `reasoning` | no | Object with `enabled` boolean and optional `effort` |
+| `reasoning_effort` | no | `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, or `max`, subject to model support |
+
+Messages support `system`, `user`, `assistant`, and `tool` roles. Content must
+be UTF-8 text; images, audio, attachments, and content-part arrays are unsupported.
+An assistant message with function calls may have empty content. Tool messages
+must include `tool_call_id` matching a preceding assistant call.
+
+Choose at most one of `thinking`, `reasoning`, or `reasoning_effort`. The
+`reasoning.effort` field accepts the same effort names as `reasoning_effort`.
+Some models map lower reasoning settings to a lower effort rather than disabling
+reasoning. Unknown fields, provider URLs/keys, and multiple choices are rejected.
+
+`thinking: false` is supported. With the current model configuration, Comet
+maps it to disabled reasoning, while Orbit and Halo map it to low reasoning
+effort, not a guarantee of zero reasoning tokens. Do not combine it with
+`reasoning` or `reasoning_effort`. It can reduce reasoning work but does not
+promise a particular time to first token.
+
+### JSON response
+
+With `stream: false`, a successful `200` response has this shape. Values are
+illustrative:
+
+```json
+{
+  "id": "chatcmpl_example",
+  "object": "chat.completion",
+  "created": 1788998400,
+  "model": "aisha-comet",
+  "choices": [
+    {
+      "index": 0,
+      "message": {"role": "assistant", "content": "Salom!"},
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 20,
+    "completion_tokens": 4,
+    "total_tokens": 24
+  }
+}
+```
+
+`created` is Unix time in seconds. `message.content` can be `null` for a
+tool-only response; `message.tool_calls` and `message.reasoning_content` are
+optional. Finish reasons are `stop`, `length`, `tool_calls`, or `content_filter`.
+Usage may also contain `prompt_tokens_details.cached_tokens` and
+`completion_tokens_details.reasoning_tokens`.
+
+Read `X-LLM-Request-ID` from the response headers for the billable request ID.
+It matches the completion `id`. `X-Credits-Charged` reports the whole credits
+debited when billing is settled. A completed answer with unverified usage can
+instead return `usage: null` and `X-LLM-Billing-Status: pending`, without
+`X-Credits-Charged`. Unknown usage is not zero cost. Successful LLM bodies have no generic `request_id`
+wrapper; the HTTP trace ID in error bodies is separate from the LLM request ID.
+
+## Stream a completion
+
+Use the same completion endpoint with `stream: true`. `curl -N` displays SSE
+events as they arrive:
+
+```bash
+curl -fS -N -D llm-stream.headers 'https://api.voicelab.uz/v1/chat/completions' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: hello-stream-001' \
+  -d '{
+    "model": "aisha-comet",
+    "messages": [{"role": "user", "content": "Say hello."}],
+    "max_tokens": 128,
+    "stream": true,
+    "stream_options": {"include_usage": true}
+  }'
+```
+
+The response uses `Content-Type: text/event-stream`. Events are separated by
+a blank line. An illustrative stream is:
+
+```text
+data: {"id":"chatcmpl_example","object":"chat.completion.chunk","model":"aisha-comet","choices":[{"index":0,"delta":{"role":"assistant","content":"Hello!"},"finish_reason":null}],"created":1788998400}
+
+data: {"id":"chatcmpl_example","object":"chat.completion.chunk","model":"aisha-comet","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"created":1788998400}
+
+data: {"id":"chatcmpl_example","object":"chat.completion.chunk","model":"aisha-comet","choices":[],"usage":{"prompt_tokens":10,"completion_tokens":2,"total_tokens":12},"created":1788998400}
+
+data: [DONE]
+```
+
+Append `choices[].delta.content` as it arrives. Reasoning can arrive in
+`delta.reasoning_content`. Assemble function-call arguments from fragments
+using each `delta.tool_calls[].index`. A network read may split or combine
+events, so parse SSE boundaries rather than assuming one read is one event.
+
+The final usage chunk appears only with `stream_options.include_usage: true`.
+`[DONE]` is sent after a complete answer and either credit settlement or durable
+recording of unresolved usage. A usage footer can contain `usage: null` when
+counts are unverified. An HTTP `200` alone does
+not prove a stream completed: it can end with an `llm_request_incomplete` error
+event and no `[DONE]`, or disconnect. Read the error inside the SSE data, retain
+`X-LLM-Request-ID`, and check [request status](https://docs.voicelab.uz/api/llm#get-request-status) before retrying.
+Streaming responses do not provide `X-Credits-Charged`; use request status for
+the settled charge.
+
+HTTP headers cannot change after streaming has started. Treat any SSE `error`
+as failure, even with HTTP `200`; an EOF without `[DONE]` is also incomplete.
+Do not execute partial tool-call arguments from an incomplete stream. Streaming
+failures are recorded separately from the wire HTTP status in request analytics.
+
+## Function calls
+
+Supply functions as data. Your application validates and executes the selected
+function; VoiceLab does not run it. This completion request asks the model to
+call one function:
+
+```json
+{
+  "model": "aisha-comet",
+  "messages": [{"role": "user", "content": "What is the weather in Tashkent?"}],
+  "max_tokens": 256,
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "get_weather",
+        "description": "Get current weather for a city.",
+        "parameters": {
+          "type": "object",
+          "properties": {"city": {"type": "string"}},
+          "required": ["city"]
+        }
+      }
+    }
+  ],
+  "tool_choice": {"type": "function", "function": {"name": "get_weather"}}
+}
+```
+
+Function names must be unique and match `[a-zA-Z0-9_-]{1,64}`. Each function's
+`parameters` must be a JSON object schema. `tool_choice: "required"` requires
+at least one tool; a named selector must refer to a supplied function.
+
+After executing a returned call, send a new completion request with the original
+messages, the assistant's calls, and a `tool` result for every call. Use the
+actual call IDs and arguments returned by the model. For example:
+
+```json
+{
+  "model": "aisha-comet",
+  "max_tokens": 256,
+  "messages": [
+    {"role": "user", "content": "What is the weather in Tashkent?"},
+    {
+      "role": "assistant",
+      "content": "",
+      "tool_calls": [
+        {
+          "id": "call_example",
+          "type": "function",
+          "function": {"name": "get_weather", "arguments": "{\"city\":\"Tashkent\"}"}
+        }
+      ]
+    },
+    {"role": "tool", "tool_call_id": "call_example", "content": "{\"temperature_c\":28}"}
+  ]
+}
+```
+
+Function arguments are a JSON-encoded string. Complete all pending tool results
+before adding another conversation message. The follow-up is a new paid
+generation and needs a new idempotency key. Resending history and tool results
+adds input tokens to that request.
+
+## Get request status
+
+**GET https://api.voicelab.uz/v1/llm/requests/{id}**
+
+Read account-scoped LLM status, token usage, and credit details. Requires llm:read.
+
+Authentication: `Bearer <VOICELAB_API_KEY>`.
+
+Use the `X-LLM-Request-ID` captured from a completion response:
+
+```bash
+curl -fS "https://api.voicelab.uz/v1/llm/requests/$LLM_REQUEST_ID" \
+  -H "Authorization: Bearer $VOICELAB_API_KEY"
+```
+
+The response is a plain object with these fields:
+
+| Field | Meaning |
+| --- | --- |
+| `id`, `model` | LLM request ID and public model ID |
+| `status` | `running`, `completed`, `failed`, `usage_pending`, or `waived` |
+| `reserved_credits` | Whole credits reserved before generation |
+| `charged_credits` | Whole credits debited; nullable until settlement |
+| `credit_units` | Exact request charge in fractional credit units; nullable |
+| `credit_unit_scale` | `100000000` units per credit |
+| `prompt_tokens`, `completion_tokens` | Reported input/output counts; nullable |
+| `cached_tokens`, `reasoning_tokens` | Optional token details represented as nullable counts |
+| `elapsed_ms`, `ttft_ms` | Elapsed time and time to first text token in milliseconds; nullable |
+| `price_version` | Price version retained for this request |
+| `created_at` | RFC3339 timestamp |
+| `failure_code` | Optional sanitized diagnostic code, when known |
+| `resolution_required` | `true` when usage requires reconciliation |
+
+Nullable values mean the corresponding result is not available. A `failed`
+request can still have a charge when usage is known. `usage_pending` means
+usage needs reconciliation; contact support with the LLM request ID.
+`waived` means support has resolved the unknown charge by waiving it.
+
+Only requests belonging to the authenticated account are returned. The endpoint
+does not return completion text, prompts, reasoning, tool contents, or a full
+price object. Developer conversation content is not retained in chat tables
+or request logs. Save responses in your application if you need them later.
+
+## Idempotency and retries
+
+Send `Idempotency-Key` for every logical completion request. The header is
+optional, but without it every call starts a new request. Use 1 to 200 printable
+ASCII characters with no spaces or control characters. Keys are scoped to the
+account and API key.
+
+| Retry | Result |
+| --- | --- |
+| Same key and same request body | `409 request_already_submitted`; no second generation or charge |
+| Same key with changed input or options | `409 idempotency_conflict` |
+| New key | A new generation, subject to admission and billing checks |
+
+Both `409` responses include the original `X-LLM-Request-ID`. Read its status;
+the API does not store or replay the completion. Keep the same body and key for
+transport retries. Use a new key only for an intentionally new generation.
+
+A broken stream, disconnect, or missing final usage can leave a request in
+`usage_pending`. Independent requests can continue while balance, concurrency
+and unresolved-exposure limits allow. Exposure is capped at eight unsettled
+requests per account and upstream model (including active requests). At that
+limit, new calls for the affected model return `503 llm_model_temporarily_unavailable`,
+`error.retryable: false`, with no `Retry-After`. This is an accounting hold, not
+a timed provider cooldown: support must reconcile or explicitly resolve it.
+Other models have their own limits, so accumulating unresolved requests on all
+three can block all three for one account. Switching keys does not bypass it.
+Ask and other products are outside this developer-LLM hold.
+
+A request proven not to have been sent upstream is recorded as `failed` with
+`failure_code: not_dispatched`, its reservation released, without consuming an
+unresolved slot. A disconnect after dispatch is ambiguous: neither zero visible
+tokens nor an upstream `499` proves zero cost. The API cancels upstream work on
+client disconnect and does not silently start another generation. Existing
+pending records are not automatically cleared by this transport fix.
+
+## Billing
+
+Read current rates from `GET /v1/models`. Before generation, VoiceLab reserves
+a conservative input budget plus the maximum output budget and checks the
+API key's credit limit. This can require more balance than the final charge.
+Actual reported usage settles the charge and releases unused reserved credits.
+Each request retains its original price version.
+
+Input includes messages, history, function definitions, and tool results. Output
+includes generated function arguments and reported reasoning tokens. Reasoning
+tokens count once within completion tokens; cached input uses the normal input
+rate. Lower visible output does not necessarily mean lower reasoning usage.
+
+Fractions accumulate per account at 1/100,000,000 of a credit. A small request
+can debit zero whole credits while adding fractional usage. Whole credits debit
+when the accumulated amount crosses a whole-credit boundary. Unlimited platform
+plans do not bypass developer LLM billing.
+
+See [pricing](https://docs.voicelab.uz/guide/pricing#llm-billing) and
+[LLM analytics](https://docs.voicelab.uz/api/analytics#llm-usage) for usage tracking.
+
+## Limits
+
+| Limit | Value |
+| --- | --- |
+| HTTP request body | 128 KiB |
+| Serialized messages and tools | 64 KiB |
+| Messages | 1 to 101 |
+| Function definitions | Up to 32 |
+| Output tokens | 1 to 4096; default 1024 |
+| Completion timeout | 120 seconds |
+| Concurrent generations | 2 per account across API replicas |
+
+Rate and capacity limits also apply. Respect `Retry-After` when present.
+
+The two-generation limit includes parallel activities such as replying and
+extracting facts; queue a third request client-side instead of retrying in a
+tight loop. 64 KiB means 65,536 bytes of serialized messages/tools, not tokens
+or characters. The 4,096-token output cap is an API limit, not model context size.
+
+The upstream response-header wait shares the 120-second generation budget;
+connection establishment still fails fast. Set your client deadline with room
+for this budget and network overhead if you want to allow the full generation.
+A shorter deadline intentionally cancels it. Streaming reduces time to first
+visible text, not necessarily full-generation time. Provider queueing and model
+generation are distinct from Go admission, database and response-forwarding
+overhead; a sub-30ms backend overhead target is not a verified latency guarantee.
+
+## Errors
+
+LLM handler errors use this envelope:
+
+```json
+{
+  "error": {
+    "message": "This request was already submitted. Check X-LLM-Request-ID; no new generation was started.",
+    "type": "request_error",
+    "code": "request_already_submitted"
+  },
+  "request_id": "req_example"
+}
+```
+
+Shared authentication failures can use the [standard error envelope](https://docs.voicelab.uz/api/errors)
+with a top-level `message`. Read `error.code` for program logic and handle both
+message locations.
+
+| Status | Code | Recovery |
+| --- | --- | --- |
+| `400` | `invalid_request` | Correct JSON, fields, limits, content type, or idempotency key |
+| `401` | `invalid_api_key` | Replace or correct the developer key |
+| `403` | `insufficient_scope` | Grant the required LLM permission |
+| `402` | `insufficient_credits`, `api_key_credit_limit` | Check balance, key limit, and maximum token budget |
+| `404` | `not_found` | Refresh models or verify the request ID and account |
+| `409` | `request_already_submitted`, `idempotency_conflict` | Read the original request status using `X-LLM-Request-ID` |
+| `422` | `llm_request_unsupported` | Change settings unsupported by the selected model |
+| `429` | `rate_limited` | Respect `Retry-After` when present |
+| `503` | `llm_usage_pending` | Contact support; do not automatically retry |
+| `503` | `llm_model_temporarily_unavailable` | Account/model unresolved-usage hold; `retryable:false`, contact support; waiting does not reset it |
+| `503` | `llm_unavailable` | Check any admitted request's status before a same-key retry |
+| `502` | `llm_upstream_canceled` | Upstream cancellation is ambiguous; inspect the request's usage state before retrying |
+
+After SSE starts, an error can arrive as a data event with
+`error.code: "llm_request_incomplete"` while HTTP status remains `200`. A stream
+without `[DONE]` is incomplete. Retain both the HTTP trace `request_id`, when
+available, and `X-LLM-Request-ID` for support.
+
+---
+
+Source: https://docs.voicelab.uz/api/realtime-stt
+
+# Realtime STT over WebSocket
+
+Realtime STT accepts raw PCM audio and returns one final transcript per commit.
+For browsers, have your backend mint a short-lived ticket. Trusted server-side
+clients may instead send `xvl-api-key` on the WebSocket handshake. Both STT and
+TTS support these same two methods; never send both together. Never put a
+long-lived API key or user JWT in the WebSocket URL or browser bundle.
+
+## 1. Create an STT ticket
+
+**POST https://api.voicelab.uz/v1/ticket**
+
+Mint a short-lived ticket for one realtime STT connection.
+
+Authentication: `Bearer vlk_...`.
+
+Content-Type: `application/json`.
+
+```json
+{"transport":"websocket","service":"stt"}
+```
+
+The API key needs `stt:realtime`. `stt:write` alone does not grant realtime
+access. Both `transport` and `service` are required. Tickets are service-bound:
+an STT ticket cannot authorize TTS and a TTS ticket cannot authorize STT.
+
+`201 Created` returns the ticket and WebSocket URL:
+
+```json
+{
+  "ticket": "eyJhbGciOiJIUzI1NiIs...",
+  "service": "stt",
+  "transport": "websocket",
+  "scope": "stt:realtime",
+  "expires_at": "2026-08-16T12:02:00Z",
+  "websocket_url": "wss://api.voicelab.uz/v1/stt/stream",
+  "request_id": "req_01J..."
+}
+```
+
+Use the ticket immediately and keep it out of logs and storage.
+
+## 2. Connect
+
+**WSS wss://api.voicelab.uz/v1/stt/stream?ticket=<short-lived-ticket>**
+
+Open one realtime STT connection with the short-lived ticket.
+
+The server sends `ready` after the connection opens:
+
+```json
+{"event":"ready","audio_format":"pcm_s16le","sample_rate":16000,"channels":1}
+```
+
+The examples transcribe `audio.pcm`, a headerless 16 kHz mono PCM16 file.
+Python uses `requests` and `websocket-client`. TypeScript uses `ws`. The Java
+example uses Java 17+ and Jackson databind. An interactive `wscat` session is
+not useful here because the client must send binary PCM chunks.
+
+
+
+```python
+import json
+import os
+from pathlib import Path
+from urllib.parse import urlencode
+
+import requests
+import websocket
+
+response = requests.post(
+    "https://api.voicelab.uz/v1/ticket",
+    headers={
+        "Authorization": f"Bearer {os.environ['VOICELAB_API_KEY']}",
+        "Content-Type": "application/json",
+    },
+    json={"transport": "websocket", "service": "stt"},
+    timeout=15,
+)
+response.raise_for_status()
+ticket = response.json()
+
+url = f"{ticket['websocket_url']}?{urlencode({'ticket': ticket['ticket']})}"
+ws = websocket.create_connection(url, timeout=45)
+print(json.loads(ws.recv()))  # ready
+
+ws.send(json.dumps({
+    "type": "start",
+    "language": "uz",
+    "audio_format": "pcm_s16le",
+    "sample_rate": 16000,
+    "channels": 1,
+    "word_timestamps": True,
+}))
+
+audio = Path("audio.pcm").read_bytes()
+for offset in range(0, len(audio), 3200):
+    ws.send_binary(audio[offset:offset + 3200])
+
+ws.send(json.dumps({"type": "commit"}))
+result = json.loads(ws.recv())
+print(result)
+ws.close()
+```
+
+```ts
+import { once } from "node:events";
+import { readFile } from "node:fs/promises";
+import WebSocket from "ws";
+
+const response = await fetch("https://api.voicelab.uz/v1/ticket", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${process.env.VOICELAB_API_KEY}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ transport: "websocket", service: "stt" }),
+});
+if (!response.ok) throw new Error(await response.text());
+
+const ticket = await response.json() as {
+  ticket: string;
+  websocket_url: string;
+};
+const url = new URL(ticket.websocket_url);
+url.searchParams.set("ticket", ticket.ticket);
+
+const socket = new WebSocket(url);
+const readyMessage = once(socket, "message");
+await once(socket, "open");
+const [ready] = await readyMessage;
+console.log(JSON.parse(ready.toString()));
+
+socket.send(JSON.stringify({
+  type: "start",
+  language: "uz",
+  audio_format: "pcm_s16le",
+  sample_rate: 16000,
+  channels: 1,
+  word_timestamps: true,
+}));
+
+const audio = await readFile("audio.pcm");
+for (let offset = 0; offset < audio.length; offset += 3200) {
+  socket.send(audio.subarray(offset, offset + 3200), { binary: true });
+}
+
+const finalMessage = once(socket, "message");
+socket.send(JSON.stringify({ type: "commit" }));
+const [result] = await finalMessage;
+console.log(JSON.parse(result.toString()));
+socket.close();
+```
+
+```java
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.net.http.WebSocket;
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.LinkedBlockingQueue;
+
+public final class RealtimeStt {
+public static void main(String[] args) throws Exception {
+var mapper = new ObjectMapper();
+var http = HttpClient.newHttpClient();
+var ticketRequest = HttpRequest.newBuilder(URI.create("https://api.voicelab.uz/v1/ticket"))
+    .header("Authorization", "Bearer " + System.getenv("VOICELAB_API_KEY"))
+    .header("Content-Type", "application/json")
+    .POST(HttpRequest.BodyPublishers.ofString(
+        "{\"transport\":\"websocket\",\"service\":\"stt\"}"))
+    .build();
+var ticketResponse = http.send(ticketRequest, HttpResponse.BodyHandlers.ofString());
+if (ticketResponse.statusCode() != 201) throw new IllegalStateException(ticketResponse.body());
+
+JsonNode ticket = mapper.readTree(ticketResponse.body());
+String socketUrl = ticket.get("websocket_url").asText() + "?ticket="
+    + URLEncoder.encode(ticket.get("ticket").asText(), StandardCharsets.UTF_8);
+var events = new LinkedBlockingQueue<String>();
+
+WebSocket.Listener listener = new WebSocket.Listener() {
+  private final StringBuilder text = new StringBuilder();
+
+  @Override public void onOpen(WebSocket socket) { socket.request(1); }
+
+  @Override public CompletionStage<?> onText(
+      WebSocket socket, CharSequence data, boolean last) {
+    text.append(data);
+    if (last) {
+      events.add(text.toString());
+      text.setLength(0);
+    }
+    socket.request(1);
+    return null;
+  }
+};
+
+WebSocket socket = http.newWebSocketBuilder()
+    .buildAsync(URI.create(socketUrl), listener).join();
+System.out.println(mapper.readTree(events.take())); // ready
+
+socket.sendText("""
+    {"type":"start","language":"uz","audio_format":"pcm_s16le",
+     "sample_rate":16000,"channels":1,"word_timestamps":true}
+    """, true).join();
+
+byte[] audio = Files.readAllBytes(Path.of("audio.pcm"));
+for (int offset = 0; offset < audio.length; offset += 3200) {
+  int length = Math.min(3200, audio.length - offset);
+  socket.sendBinary(ByteBuffer.wrap(audio, offset, length), true).join();
+}
+
+socket.sendText("{\"type\":\"commit\"}", true).join();
+System.out.println(mapper.readTree(events.take())); // final or error
+socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
+}
+}
+```
+
+
+
+For browser clients, let your backend mint the ticket. Redact ticket query
+strings in reverse-proxy access logs.
+
+## 3. Start an utterance
+
+```json
+{
+  "type": "start",
+  "language": "uz",
+  "audio_format": "pcm_s16le",
+  "sample_rate": 16000,
+  "channels": 1,
+  "word_timestamps": true
+}
+```
+
+Realtime STT supports `uz`, `en`, and `ru`. Audio must be signed 16-bit
+little-endian PCM, mono, and 16,000 Hz. Each commit must contain at least 100
+ms and at most 35 seconds of audio.
+
+Browser `MediaRecorder` WebM/Opus frames are not accepted. Decode them to
+PCM16 with an `AudioWorklet` before sending.
+
+## 4. Send audio and commit
+
+Send one or more binary WebSocket frames containing raw PCM bytes, then send:
+
+```json
+{"type":"commit"}
+```
+
+`{"action":"stop"}` is an alias for commit. Cancel or clear the active
+utterance with:
+
+```json
+{"action":"interrupt"}
+```
+
+## Final response
+
+The server returns one final result. It does not send interim transcripts.
+
+```json
+{
+  "event": "final",
+  "text": "Salom dunyo",
+  "language": "uz",
+  "duration_ms": 1420,
+  "segments": [
+    {
+      "ordinal": 1,
+      "start_ms": 120,
+      "end_ms": 1320,
+      "text": "Salom dunyo",
+      "words": [
+        {"ordinal": 1, "start_ms": 120, "end_ms": 500, "text": "Salom"},
+        {"ordinal": 2, "start_ms": 520, "end_ms": 1320, "text": "dunyo"}
+      ]
+    }
+  ]
+}
+```
+
+Realtime results do not enter STT history. Use `POST /v1/stt` for saved
+transcriptions, source audio, editing, or SRT/VTT export.
+
+## Error events
+
+```json
+{
+  "event": "error",
+  "code": "invalid_audio",
+  "message": "Send at least 100 ms of PCM audio before commit."
+}
+```
+
+WebSocket error codes include `invalid_message`, `validation_error`,
+`not_started`, `busy`, `invalid_audio`, `audio_too_long`,
+`no_speech_detected`, `insufficient_credits`, `overloaded`, `timeout`, and
+`service_unavailable`.
+
+Errors before the WebSocket upgrade use HTTP JSON:
+
+| Status | Code |
+| ---: | --- |
+| `401` | `invalid_realtime_ticket` |
+| `403` | `origin_forbidden` |
+| `404` | `not_found` when realtime is disabled |
+
+After the upgrade, validation and processing errors are WebSocket JSON events,
+not HTTP responses.
+
+---
+
+Source: https://docs.voicelab.uz/api/stt
+
+# Speech-to-Text (STT)
+
+Upload audio for transcription, speaker labels, timing data, history, editing, and export.
+
+## Transcribe audio
+
+**POST https://api.voicelab.uz/v1/stt**
+
+Upload an audio file for speech-to-text transcription.
+
+Authentication: `Bearer vlk_...`.
+
+Content-Type: `multipart/form-data`.
+
+### Headers
+
+| Header | Required | Value |
+| --- | --- | --- |
+| `Authorization` | yes | `Bearer <VOICELAB_API_KEY>` |
+| `Idempotency-Key` | yes | A UUID in standard 36-character form |
+| `Content-Type` | yes | `multipart/form-data` with the generated boundary |
+
+Example idempotency key: `550e8400-e29b-41d4-a716-446655440000`.
+
+### Multipart fields
+
+| Field | Required | Value |
+| --- | --- | --- |
+| `audio` | yes | One audio file |
+| `language` | yes | `uz`, `en`, or `ru` |
+| `include_speakers` | no | `true` or `false`; default: `false` |
+
+### Upload limits
+
+| Limit | Value |
+| --- | --- |
+| Formats | MP3, WAV, M4A/AAC, OGG/Opus, WebM/Opus, or FLAC |
+| Minimum audio duration | 0.5 seconds |
+| Upload size | 500 MiB maximum |
+| Submission | `202 Accepted` for all newly accepted files, including short clips |
+
+The API inspects the actual container and codec. A filename or browser MIME type does not prove that a file is valid.
+
+### Request examples
+
+All examples send `meeting.mp3` with `language=en` and `include_speakers=false`.
+Submission requires `stt:write`; polling requires `stt:read` on the same account.
+Generate and persist a new UUID for each logical upload; reuse it for identical
+retries. The upload acknowledgement is not the transcript. Python and TypeScript
+below poll automatically; the cURL and Java examples print the accepted job ID,
+which you then retrieve using the polling endpoint below.
+
+
+
+```bash
+curl -fS 'https://api.voicelab.uz/v1/stt' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY" \
+  -H 'Idempotency-Key: 550e8400-e29b-41d4-a716-446655440000' \
+  -F 'audio=@meeting.mp3;type=audio/mpeg' \
+  -F 'language=en' \
+  -F 'include_speakers=false'
+```
+
+```python
+import os
+import time
+import uuid
+import requests
+
+base = "https://api.voicelab.uz"
+headers = {"Authorization": f"Bearer {os.environ['VOICELAB_API_KEY']}"}
+request_key = str(uuid.uuid4())  # Save for retries of this exact file/options.
+with open("meeting.mp3", "rb") as audio_file:
+    response = requests.post(
+        "https://api.voicelab.uz/v1/stt",
+        headers={
+            **headers,
+            "Idempotency-Key": request_key,
+        },
+        files={"audio": ("meeting.mp3", audio_file, "audio/mpeg")},
+        data={"language": "en", "include_speakers": "false"},
+        timeout=120,
+    )
+
+response.raise_for_status()
+job_id = response.json()["id"]  # Persist this ID to resume polling later.
+deadline = time.monotonic() + 900
+while time.monotonic() < deadline:
+    poll = requests.get(f"{base}/v1/stt/transcriptions/{job_id}", headers=headers, timeout=30)
+    poll.raise_for_status()
+    result = poll.json()
+    if result["status"] == "completed":
+        print(result["transcript"])
+        break
+    if result["status"] == "failed":
+        raise RuntimeError(result.get("error", "Transcription failed"))
+    time.sleep(max(1, min(10, int(poll.headers.get("Retry-After", "1")))))
+else:
+    raise TimeoutError(f"Still pending: {job_id}; resume polling this ID, do not resubmit.")
+```
+
+```ts
+import { readFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+
+const base = "https://api.voicelab.uz";
+const headers = { Authorization: `Bearer ${process.env.VOICELAB_API_KEY}` };
+const requestKey = randomUUID(); // Save for retries of this exact file/options.
+const form = new FormData();
+const audio = new Uint8Array(await readFile("meeting.mp3"));
+form.append("audio", new Blob([audio], { type: "audio/mpeg" }), "meeting.mp3");
+form.append("language", "en");
+form.append("include_speakers", "false");
+
+const response = await fetch("https://api.voicelab.uz/v1/stt", {
+  method: "POST",
+  headers: {
+    ...headers,
+    "Idempotency-Key": requestKey,
+  },
+  body: form,
+  signal: AbortSignal.timeout(120_000),
+});
+
+if (!response.ok) throw new Error(await response.text());
+const { id } = await response.json(); // Persist to resume polling later.
+const deadline = Date.now() + 900_000;
+let completed = false;
+while (Date.now() < deadline) {
+  const poll = await fetch(`${base}/v1/stt/transcriptions/${encodeURIComponent(id)}`, {
+    headers, signal: AbortSignal.timeout(30_000),
+  });
+  if (!poll.ok) throw new Error(await poll.text());
+  const result = await poll.json();
+  if (result.status === "completed") {
+    console.log(result.transcript);
+    completed = true;
+    break;
+  }
+  if (result.status === "failed") throw new Error(JSON.stringify(result.error ?? result));
+  const retryAfter = Number(poll.headers.get("Retry-After") ?? "1");
+  const seconds = Number.isFinite(retryAfter) ? Math.max(1, Math.min(10, retryAfter)) : 1;
+  await new Promise(resolve => setTimeout(resolve, seconds * 1000));
+}
+if (!completed) throw new Error(`Still pending: ${id}; resume polling this ID, do not resubmit.`);
+```
+
+```java
+import java.io.ByteArrayOutputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.Duration;
+import java.util.UUID;
+
+public final class Main {
+  private static void addField(
+      ByteArrayOutputStream body, String boundary, String name, String value
+  ) throws Exception {
+    body.write(("--" + boundary + "\r\n"
+        + "Content-Disposition: form-data; name=\"" + name + "\"\r\n\r\n"
+        + value + "\r\n").getBytes(StandardCharsets.UTF_8));
+  }
+
+  public static void main(String[] args) throws Exception {
+    String boundary = "VoiceLabBoundary" + System.currentTimeMillis();
+    ByteArrayOutputStream body = new ByteArrayOutputStream();
+
+    body.write(("--" + boundary + "\r\n"
+        + "Content-Disposition: form-data; name=\"audio\"; filename=\"meeting.mp3\"\r\n"
+        + "Content-Type: audio/mpeg\r\n\r\n").getBytes(StandardCharsets.UTF_8));
+    body.write(Files.readAllBytes(Path.of("meeting.mp3")));
+    body.write("\r\n".getBytes(StandardCharsets.UTF_8));
+    addField(body, boundary, "language", "en");
+    addField(body, boundary, "include_speakers", "false");
+    body.write(("--" + boundary + "--\r\n").getBytes(StandardCharsets.UTF_8));
+
+    HttpRequest request = HttpRequest.newBuilder()
+        .uri(URI.create("https://api.voicelab.uz/v1/stt"))
+        .header("Authorization", "Bearer " + System.getenv("VOICELAB_API_KEY"))
+        .header("Idempotency-Key", UUID.randomUUID().toString()) // Persist for retries.
+        .header("Content-Type", "multipart/form-data; boundary=" + boundary)
+        .timeout(Duration.ofSeconds(120))
+        .POST(HttpRequest.BodyPublishers.ofByteArray(body.toByteArray()))
+        .build();
+
+    HttpResponse<String> response = HttpClient.newHttpClient().send(
+        request, HttpResponse.BodyHandlers.ofString()
+    );
+    if (response.statusCode() >= 400) throw new RuntimeException(response.body());
+    System.out.println(response.body()); // 202 acknowledgement: poll its id, not transcript.
+  }
+}
+```
+
+
+
+### Submission response
+
+Both short and long recordings return `202 Accepted` with a job acknowledgement:
+
+```json
+{"id":"stt_01J...","status":"queued","request_id":"req_01J..."}
+```
+
+Poll `GET /v1/stt/transcriptions/{id}` using the same account's `stt:read` key.
+Respect `Retry-After` when present; otherwise poll about once per second with a
+bounded client deadline. A polling `200 OK` can still mean `queued` or
+`processing`. Only read `transcript` after `status=completed`; handle
+`status=failed` as a job failure, even when the polling HTTP status is `200`.
+
+```bash
+curl -fS "https://api.voicelab.uz/v1/stt/transcriptions/$STT_JOB_ID" \
+  -H "Authorization: Bearer $VOICELAB_API_KEY"
+```
+
+Persist `id` before polling. If your client deadline expires, resume polling
+that same ID later instead of submitting duplicate work. Processing time
+depends on duration, diarization and queue/provider load, not only file size.
+
+### Completed polling response
+
+```json
+{
+  "id": "stt_01J...",
+  "status": "completed",
+  "transcript": "Hello world.",
+  "language": "en",
+  "duration_ms": 1420,
+  "audio_available": true,
+  "audio_url": "https://storage.example/signed-url...",
+  "segments": [
+    {
+      "ordinal": 1,
+      "start_ms": 120,
+      "end_ms": 1320,
+      "text": "Hello world.",
+      "words": [
+        {"ordinal": 1, "start_ms": 120, "end_ms": 520, "text": "Hello"},
+        {"ordinal": 2, "start_ms": 540, "end_ms": 1320, "text": "world."}
+      ]
+    }
+  ],
+  "speakers": [],
+  "speakers_available": false,
+  "request_id": "req_01J..."
+}
+```
+
+`audio_url` is optional and short-lived. The API returns it only when private source-audio storage is configured.
+
+The API returns word timing when the provider supplies valid alignment. If `words` is absent, use the segment's `start_ms` and `end_ms`. Do not calculate word timing by dividing a segment.
+
+With `include_speakers=true`, segments can contain labels such as `speaker_1`, and `speakers` contains local display metadata. Labels apply only to that transcription and do not identify people across recordings.
+
+## Retry safely with idempotency
+
+- Use a new UUID for different audio, language, or fields.
+- After an upload timeout, retry the same file and fields with the same UUID. The API identifies the existing job without processing or charging again. Even a completed POST replay is an acknowledgement; GET the result by ID.
+- Reusing a UUID with different audio or fields returns `409 idempotency_key_reused`.
+
+```json
+{
+  "message": "Use a new Idempotency-Key for a different request.",
+  "error": {"code": "idempotency_key_reused"},
+  "request_id": "req_01J..."
+}
+```
+
+## Read transcription history
+
+### List transcriptions
+
+**GET https://api.voicelab.uz/v1/stt/transcriptions?limit=10&cursor=<opaque>**
+
+List saved transcriptions with cursor pagination.
+
+Authentication: `Bearer vlk_...`.
+
+Requires `stt:read`. The list limit is `10`. Treat `next_cursor` as opaque and send it unchanged.
+
+
+
+```bash
+curl -fS 'https://api.voicelab.uz/v1/stt/transcriptions?limit=10&cursor=NEXT_CURSOR' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY"
+```
+
+```python
+import os
+import requests
+
+response = requests.get(
+    "https://api.voicelab.uz/v1/stt/transcriptions",
+    headers={"Authorization": f"Bearer {os.environ['VOICELAB_API_KEY']}"},
+    params={"limit": 10, "cursor": "NEXT_CURSOR"},
+    timeout=30,
+)
+response.raise_for_status()
+print(response.json())
+```
+
+```ts
+const url = new URL("https://api.voicelab.uz/v1/stt/transcriptions");
+url.searchParams.set("limit", "10");
+url.searchParams.set("cursor", "NEXT_CURSOR");
+
+const response = await fetch(url, {
+  headers: { Authorization: `Bearer ${process.env.VOICELAB_API_KEY}` },
+});
+if (!response.ok) throw new Error(await response.text());
+console.log(await response.json());
+```
+
+```java
+import java.net.URI;
+import java.net.URLEncoder;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+
+public final class Main {
+  public static void main(String[] args) throws Exception {
+    String cursor = URLEncoder.encode("NEXT_CURSOR", StandardCharsets.UTF_8);
+    var request = HttpRequest.newBuilder(URI.create(
+        "https://api.voicelab.uz/v1/stt/transcriptions?limit=10&cursor=" + cursor))
+        .header("Authorization", "Bearer " + System.getenv("VOICELAB_API_KEY"))
+        .GET()
+        .build();
+    var response = HttpClient.newHttpClient().send(
+        request, HttpResponse.BodyHandlers.ofString());
+    if (response.statusCode() >= 400) throw new RuntimeException(response.body());
+    System.out.println(response.body());
+  }
+}
+```
+
+
+
+```json
+{
+  "data": [
+    {
+      "id": "stt_01J...",
+      "title": "meeting",
+      "language": "en",
+      "duration_ms": 1420,
+      "audio_available": true,
+      "created_at": "2026-08-16T12:00:00Z"
+    }
+  ],
+  "next_cursor": null,
+  "request_id": "req_01J..."
+}
+```
+
+### Get a transcription
+
+**GET https://api.voicelab.uz/v1/stt/transcriptions/{transcription_id}**
+
+Read a complete transcription and its metadata.
+
+Authentication: `Bearer vlk_...`.
+
+The response contains the transcript, ordered segments, word timing, local speaker labels, revision, and optional signed source-audio URL.
+
+
+
+```bash
+curl -fS 'https://api.voicelab.uz/v1/stt/transcriptions/stt_01J...' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY"
+```
+
+```python
+import os
+import requests
+
+response = requests.get(
+    "https://api.voicelab.uz/v1/stt/transcriptions/stt_01J...",
+    headers={"Authorization": f"Bearer {os.environ['VOICELAB_API_KEY']}"},
+    timeout=30,
+)
+response.raise_for_status()
+print(response.json())
+```
+
+```ts
+const response = await fetch(
+  "https://api.voicelab.uz/v1/stt/transcriptions/stt_01J...",
+  { headers: { Authorization: `Bearer ${process.env.VOICELAB_API_KEY}` } },
+);
+if (!response.ok) throw new Error(await response.text());
+console.log(await response.json());
+```
+
+```java
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+
+public final class Main {
+  public static void main(String[] args) throws Exception {
+    var request = HttpRequest.newBuilder(URI.create(
+        "https://api.voicelab.uz/v1/stt/transcriptions/stt_01J..."))
+        .header("Authorization", "Bearer " + System.getenv("VOICELAB_API_KEY"))
+        .GET()
+        .build();
+    var response = HttpClient.newHttpClient().send(
+        request, HttpResponse.BodyHandlers.ofString());
+    if (response.statusCode() >= 400) throw new RuntimeException(response.body());
+    System.out.println(response.body());
+  }
+}
+```
+
+
+
+## Rename, edit, and delete
+
+### Rename a transcription
+
+**PATCH https://api.voicelab.uz/v1/stt/transcriptions/{transcription_id}**
+
+Rename a saved transcription.
+
+Authentication: `Bearer vlk_...`.
+
+Content-Type: `application/json`.
+
+Requires `stt:write`.
+
+```json
+{"title":"Customer interview"}
+```
+
+
+
+```bash
+curl -fS -X PATCH 'https://api.voicelab.uz/v1/stt/transcriptions/stt_01J...' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"title":"Customer interview"}'
+```
+
+```python
+import os
+import requests
+
+response = requests.patch(
+    "https://api.voicelab.uz/v1/stt/transcriptions/stt_01J...",
+    headers={"Authorization": f"Bearer {os.environ['VOICELAB_API_KEY']}"},
+    json={"title": "Customer interview"},
+    timeout=30,
+)
+response.raise_for_status()
+print(response.json())
+```
+
+```ts
+const response = await fetch(
+  "https://api.voicelab.uz/v1/stt/transcriptions/stt_01J...",
+  {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${process.env.VOICELAB_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ title: "Customer interview" }),
+  },
+);
+if (!response.ok) throw new Error(await response.text());
+console.log(await response.json());
+```
+
+```java
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+
+public final class Main {
+  public static void main(String[] args) throws Exception {
+    var request = HttpRequest.newBuilder(URI.create(
+        "https://api.voicelab.uz/v1/stt/transcriptions/stt_01J..."))
+        .header("Authorization", "Bearer " + System.getenv("VOICELAB_API_KEY"))
+        .header("Content-Type", "application/json")
+        .method("PATCH", HttpRequest.BodyPublishers.ofString(
+            "{\"title\":\"Customer interview\"}"))
+        .build();
+    var response = HttpClient.newHttpClient().send(
+        request, HttpResponse.BodyHandlers.ofString());
+    if (response.statusCode() >= 400) throw new RuntimeException(response.body());
+    System.out.println(response.body());
+  }
+}
+```
+
+
+
+`200 OK`:
+
+```json
+{
+  "id": "stt_01J...",
+  "title": "Customer interview",
+  "updated_at": "2026-08-16T12:05:00Z",
+  "request_id": "req_01J..."
+}
+```
+
+### Edit a transcription
+
+**PUT https://api.voicelab.uz/v1/stt/transcriptions/{transcription_id}/editor**
+
+Atomically replace the editable transcript document.
+
+Authentication: `Bearer vlk_...`.
+
+Content-Type: `application/json`.
+
+Send the current `revision` from the `GET` response:
+
+```json
+{
+  "revision": 1,
+  "title": "Customer interview",
+  "segments": [
+    {
+      "ordinal": 1,
+      "start_ms": 120,
+      "end_ms": 1320,
+      "text": "Hello world.",
+      "speaker": "speaker_1"
+    }
+  ],
+  "speakers": [
+    {"id": "speaker_1", "display_name": "Speaker 1"}
+  ]
+}
+```
+
+
+
+```bash
+curl -fS -X PUT 'https://api.voicelab.uz/v1/stt/transcriptions/stt_01J.../editor' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY" \
+  -H 'Content-Type: application/json' \
+  --data-binary @- <<'JSON'
+{
+  "revision": 1,
+  "title": "Customer interview",
+  "segments": [
+    {"ordinal": 1, "start_ms": 120, "end_ms": 1320, "text": "Hello world.", "speaker": "speaker_1"}
+  ],
+  "speakers": [{"id": "speaker_1", "display_name": "Speaker 1"}]
+}
+JSON
+```
+
+```python
+import os
+import requests
+
+document = {
+    "revision": 1,
+    "title": "Customer interview",
+    "segments": [{
+        "ordinal": 1,
+        "start_ms": 120,
+        "end_ms": 1320,
+        "text": "Hello world.",
+        "speaker": "speaker_1",
+    }],
+    "speakers": [{"id": "speaker_1", "display_name": "Speaker 1"}],
+}
+response = requests.put(
+    "https://api.voicelab.uz/v1/stt/transcriptions/stt_01J.../editor",
+    headers={"Authorization": f"Bearer {os.environ['VOICELAB_API_KEY']}"},
+    json=document,
+    timeout=30,
+)
+response.raise_for_status()
+print(response.json())
+```
+
+```ts
+const document = {
+  revision: 1,
+  title: "Customer interview",
+  segments: [{
+    ordinal: 1,
+    start_ms: 120,
+    end_ms: 1320,
+    text: "Hello world.",
+    speaker: "speaker_1",
+  }],
+  speakers: [{ id: "speaker_1", display_name: "Speaker 1" }],
+};
+
+const response = await fetch(
+  "https://api.voicelab.uz/v1/stt/transcriptions/stt_01J.../editor",
+  {
+    method: "PUT",
+    headers: {
+      Authorization: `Bearer ${process.env.VOICELAB_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(document),
+  },
+);
+if (!response.ok) throw new Error(await response.text());
+console.log(await response.json());
+```
+
+```java
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+
+public final class Main {
+  public static void main(String[] args) throws Exception {
+    String document = """
+        {
+          "revision": 1,
+          "title": "Customer interview",
+          "segments": [
+            {"ordinal": 1, "start_ms": 120, "end_ms": 1320,
+             "text": "Hello world.", "speaker": "speaker_1"}
+          ],
+          "speakers": [{"id": "speaker_1", "display_name": "Speaker 1"}]
+        }
+        """;
+    var request = HttpRequest.newBuilder(URI.create(
+        "https://api.voicelab.uz/v1/stt/transcriptions/stt_01J.../editor"))
+        .header("Authorization", "Bearer " + System.getenv("VOICELAB_API_KEY"))
+        .header("Content-Type", "application/json")
+        .PUT(HttpRequest.BodyPublishers.ofString(document))
+        .build();
+    var response = HttpClient.newHttpClient().send(
+        request, HttpResponse.BodyHandlers.ofString());
+    if (response.statusCode() >= 400) throw new RuntimeException(response.body());
+    System.out.println(response.body());
+  }
+}
+```
+
+
+
+A stale revision returns `409 stt_edit_conflict`. Reload and merge before retrying. For a historical result without timing segments, send `transcript` instead of `segments` and `speakers`.
+
+### Delete a transcription
+
+**DELETE https://api.voicelab.uz/v1/stt/transcriptions/{transcription_id}**
+
+Delete a transcription and retained source audio.
+
+Authentication: `Bearer vlk_...`.
+
+
+
+```bash
+curl -fS -X DELETE 'https://api.voicelab.uz/v1/stt/transcriptions/stt_01J...' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY"
+```
+
+```python
+import os
+import requests
+
+response = requests.delete(
+    "https://api.voicelab.uz/v1/stt/transcriptions/stt_01J...",
+    headers={"Authorization": f"Bearer {os.environ['VOICELAB_API_KEY']}"},
+    timeout=30,
+)
+response.raise_for_status()
+```
+
+```ts
+const response = await fetch(
+  "https://api.voicelab.uz/v1/stt/transcriptions/stt_01J...",
+  {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${process.env.VOICELAB_API_KEY}` },
+  },
+);
+if (!response.ok) throw new Error(await response.text());
+```
+
+```java
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+
+public final class Main {
+  public static void main(String[] args) throws Exception {
+    var request = HttpRequest.newBuilder(URI.create(
+        "https://api.voicelab.uz/v1/stt/transcriptions/stt_01J..."))
+        .header("Authorization", "Bearer " + System.getenv("VOICELAB_API_KEY"))
+        .DELETE()
+        .build();
+    var response = HttpClient.newHttpClient().send(
+        request, HttpResponse.BodyHandlers.discarding());
+    if (response.statusCode() >= 400) {
+      throw new RuntimeException("HTTP " + response.statusCode());
+    }
+  }
+}
+```
+
+
+
+Requires `stt:write`. A successful deletion returns `204 No Content`.
+
+## Export TXT, JSON, SRT, or VTT
+
+**GET https://api.voicelab.uz/v1/stt/transcriptions/{transcription_id}/export?format=json**
+
+Export a transcript as TXT, JSON, SRT, or VTT.
+
+Authentication: `Bearer vlk_...`.
+
+The response includes `Content-Disposition: attachment`.
+
+| Format | Contents |
+| --- | --- |
+| `txt` | Plain transcript |
+| `json` | Transcript, language, duration, speakers, and segments |
+| `srt` | SubRip captions |
+| `vtt` | WebVTT captions |
+
+SRT and VTT require stored timing segments. Without them, the API returns `409 stt_timestamps_not_available` and does not fabricate timestamps.
+
+
+
+```bash
+curl -fS 'https://api.voicelab.uz/v1/stt/transcriptions/stt_01J.../export?format=vtt' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY" \
+  -o meeting.vtt
+```
+
+```python
+import os
+from pathlib import Path
+import requests
+
+response = requests.get(
+    "https://api.voicelab.uz/v1/stt/transcriptions/stt_01J.../export",
+    headers={"Authorization": f"Bearer {os.environ['VOICELAB_API_KEY']}"},
+    params={"format": "vtt"},
+    timeout=30,
+)
+response.raise_for_status()
+Path("meeting.vtt").write_bytes(response.content)
+```
+
+```ts
+import { writeFile } from "node:fs/promises";
+
+const response = await fetch(
+  "https://api.voicelab.uz/v1/stt/transcriptions/stt_01J.../export?format=vtt",
+  { headers: { Authorization: `Bearer ${process.env.VOICELAB_API_KEY}` } },
+);
+if (!response.ok) throw new Error(await response.text());
+await writeFile("meeting.vtt", Buffer.from(await response.arrayBuffer()));
+```
+
+```java
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+public final class Main {
+  public static void main(String[] args) throws Exception {
+    var request = HttpRequest.newBuilder(URI.create(
+        "https://api.voicelab.uz/v1/stt/transcriptions/stt_01J.../export?format=vtt"))
+        .header("Authorization", "Bearer " + System.getenv("VOICELAB_API_KEY"))
+        .GET()
+        .build();
+    var response = HttpClient.newHttpClient().send(
+        request, HttpResponse.BodyHandlers.ofByteArray());
+    if (response.statusCode() >= 400) {
+      throw new RuntimeException(new String(response.body()));
+    }
+    Files.write(Path.of("meeting.vtt"), response.body());
+  }
+}
+```
+
+
+
+## STT errors
+
+| Status | Code | Meaning |
+| ---: | --- | --- |
+| `400` | `invalid_multipart`, `invalid_idempotency_key`, `invalid_pagination` | Fix fields or cursor |
+| `401` | `invalid_api_key` | API key is missing, expired, disabled, or invalid |
+| `402` | `insufficient_credits` | Account does not have enough credits |
+| `403` | `insufficient_scope` | Key permissions or allowed IP policy blocks the operation |
+| `404` | `stt_transcription_not_found` | ID is unknown or belongs to another account |
+| `409` | `idempotency_key_reused`, `stt_edit_conflict`, `stt_timestamps_not_available` | Resolve the state conflict |
+| `413` | `audio_too_large` | Use a smaller file |
+| `415` | `unsupported_audio_format` | Use a supported audio format |
+| `422` | `invalid_audio`, `unsupported_language`, `no_speech_detected`, `validation_error` | Correct the request |
+| `429` | `rate_limited` | Wait for `Retry-After` |
+| `503` | `stt_unavailable` | Retry later with the same idempotency key |
+
+---
+
+Source: https://docs.voicelab.uz/api/tts
+
+# Text to Speech
+
+Generate mono, 16-bit PCM WAV audio at 24 kHz. Use a server-side API key with `tts:write` permission.
+
+## Generate speech
+
+**POST https://api.voicelab.uz/v1/tts**
+
+Generate a complete WAV file from text.
+
+Authentication: `Bearer vlk_...`.
+
+Content-Type: `application/json`.
+
+| Field | Type | Required | Notes |
+| --- | --- | :---: | --- |
+| `text` | string | Yes | 1 to 5,000 Unicode characters; complete JSON body at most 64 KiB |
+| `language` | string | Yes | Code returned by `/v1/tts/languages` |
+| `voice_id` | string | Yes | Opaque `voice_...` ID from `/v1/voices` |
+| `speed` | number | No | `0.5` to `2.0`, default `1` |
+
+Omitting `speed` is equivalent to sending `1`. Explicit `0`, `null`, and strings
+are invalid; the default is applied only to omission.
+
+Send a unique `Idempotency-Key` with each new generation. Reuse that key only when retrying the same body.
+
+
+
+```bash
+curl -fS 'https://api.voicelab.uz/v1/tts' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: hello-world-001' \
+  -d '{
+    "text": "Hello from VoiceLab.",
+    "language": "en",
+    "voice_id": "voice_01J9NEUTRAL0000000000000001",
+    "speed": 1
+  }' \
+  -o hello.wav
+```
+
+```python
+import os
+import requests
+
+response = requests.post(
+    "https://api.voicelab.uz/v1/tts",
+    headers={
+        "Authorization": f"Bearer {os.environ['VOICELAB_API_KEY']}",
+        "Idempotency-Key": "hello-world-001",
+    },
+    json={
+        "text": "Hello from VoiceLab.",
+        "language": "en",
+        "voice_id": "voice_01J9NEUTRAL0000000000000001",
+        "speed": 1,
+    },
+    timeout=60,
+)
+response.raise_for_status()
+open("hello.wav", "wb").write(response.content)
+```
+
+```ts
+import { writeFile } from "node:fs/promises";
+
+const response = await fetch("https://api.voicelab.uz/v1/tts", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${process.env.VOICELAB_API_KEY}`,
+    "Content-Type": "application/json",
+    "Idempotency-Key": "hello-world-001",
+  },
+  body: JSON.stringify({
+    text: "Hello from VoiceLab.",
+    language: "en",
+    voice_id: "voice_01J9NEUTRAL0000000000000001",
+    speed: 1,
+  }),
+});
+
+if (!response.ok) throw new Error(await response.text());
+await writeFile("hello.wav", Buffer.from(await response.arrayBuffer()));
+```
+
+```java
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
+var json = """
+  {"text":"Hello from VoiceLab.","language":"en",
+   "voice_id":"voice_01J9NEUTRAL0000000000000001","speed":1}
+  """;
+
+var request = HttpRequest.newBuilder(URI.create("https://api.voicelab.uz/v1/tts"))
+    .header("Authorization", "Bearer " + System.getenv("VOICELAB_API_KEY"))
+    .header("Content-Type", "application/json")
+    .header("Idempotency-Key", "hello-world-001")
+    .POST(HttpRequest.BodyPublishers.ofString(json))
+    .build();
+
+var response = HttpClient.newHttpClient().send(
+    request, HttpResponse.BodyHandlers.ofByteArray());
+Files.write(Path.of("hello.wav"), response.body());
+```
+
+
+
+`200 OK` returns the audio bytes, not JSON.
+
+```http
+Content-Type: audio/wav
+X-VoiceLab-Characters-Used: 24
+X-VoiceLab-Audio-Duration-Ms: 1180
+X-VoiceLab-Sample-Rate: 24000
+```
+
+One Unicode character uses one credit. VoiceLab releases reserved credits if generation fails.
+
+## Available languages and models
+
+**GET https://api.voicelab.uz/v1/tts/languages**
+
+Return supported languages, models, formats, and sample rates.
+
+Authentication: `Bearer vlk_...`.
+
+Requires `tts:read`. Fetch this catalog instead of hardcoding language or model names.
+
+```json
+{
+  "provider": "Lison-VoiceLab",
+  "sample_rate": 24000,
+  "data": [
+    {"code": "en", "name": "English", "native_name": "English"},
+    {"code": "uz", "name": "Uzbek", "native_name": "O'zbek"}
+  ],
+  "models": [
+    {
+      "id": "lison",
+      "languages": ["en", "uz", "ru"],
+      "outputs": [{"format": "wav", "sample_rate": 24000, "streaming": false}]
+    }
+  ]
+}
+```
+
+## Idempotency
+
+Keys must contain 8 to 128 letters, numbers, `.`, `_`, or `-` characters.
+
+- Retry a timed-out request with the same key and the same JSON body.
+- Use a new key when any input changes.
+- A replay returns the stored WAV with `Idempotent-Replayed: true`.
+- Reusing a key with different input returns `409 idempotency_key_reused`.
+
+## List generations
+
+**GET https://api.voicelab.uz/v1/tts/generations?limit=30&cursor=<opaque>**
+
+List generated audio with cursor pagination.
+
+Authentication: `Bearer vlk_...`.
+
+
+
+```bash
+curl -fS 'https://api.voicelab.uz/v1/tts/generations?limit=30' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY"
+```
+
+```python
+import os
+import requests
+
+response = requests.get(
+    "https://api.voicelab.uz/v1/tts/generations",
+    headers={"Authorization": f"Bearer {os.environ['VOICELAB_API_KEY']}"},
+    params={"limit": 30},
+    timeout=30,
+)
+response.raise_for_status()
+print(response.json())
+```
+
+```ts
+const response = await fetch(
+  "https://api.voicelab.uz/v1/tts/generations?limit=30",
+  { headers: { Authorization: `Bearer ${process.env.VOICELAB_API_KEY}` } },
+);
+
+if (!response.ok) throw new Error(await response.text());
+console.log(await response.json());
+```
+
+```java
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+
+public final class Main {
+  public static void main(String[] args) throws Exception {
+    var request = HttpRequest.newBuilder(
+            URI.create("https://api.voicelab.uz/v1/tts/generations?limit=30"))
+        .header("Authorization", "Bearer " + System.getenv("VOICELAB_API_KEY"))
+        .GET()
+        .build();
+
+    var response = HttpClient.newHttpClient().send(
+        request, HttpResponse.BodyHandlers.ofString());
+    if (response.statusCode() >= 400) throw new RuntimeException(response.body());
+    System.out.println(response.body());
+  }
+}
+```
+
+
+
+Requires `tts:read`. `limit` defaults to `30` and accepts `1` to `100`.
+
+```json
+{
+  "data": [
+    {
+      "id": "gen_01J...",
+      "text_preview": "Your order is ready.",
+      "voice": {"id": "voice_01J...", "name": "Lison Neutral", "language": "en"},
+      "duration_ms": 1180,
+      "created_at": "2026-08-16T12:00:00Z",
+      "audio_available": true
+    }
+  ],
+  "next_cursor": null,
+  "request_id": "req_01J..."
+}
+```
+
+## Get a generation
+
+**GET https://api.voicelab.uz/v1/tts/generations/{generation_id}**
+
+Read one generation and its short-lived audio URL.
+
+Authentication: `Bearer vlk_...`.
+
+
+
+```bash
+curl -fS 'https://api.voicelab.uz/v1/tts/generations/gen_01J...' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY"
+```
+
+```python
+import os
+import requests
+
+generation_id = "gen_01J..."
+response = requests.get(
+    f"https://api.voicelab.uz/v1/tts/generations/{generation_id}",
+    headers={"Authorization": f"Bearer {os.environ['VOICELAB_API_KEY']}"},
+    timeout=30,
+)
+response.raise_for_status()
+print(response.json())
+```
+
+```ts
+const generationId = "gen_01J...";
+const response = await fetch(
+  `https://api.voicelab.uz/v1/tts/generations/${generationId}`,
+  { headers: { Authorization: `Bearer ${process.env.VOICELAB_API_KEY}` } },
+);
+
+if (!response.ok) throw new Error(await response.text());
+console.log(await response.json());
+```
+
+```java
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+
+public final class Main {
+  public static void main(String[] args) throws Exception {
+    var generationId = "gen_01J...";
+    var request = HttpRequest.newBuilder(URI.create(
+            "https://api.voicelab.uz/v1/tts/generations/" + generationId))
+        .header("Authorization", "Bearer " + System.getenv("VOICELAB_API_KEY"))
+        .GET()
+        .build();
+
+    var response = HttpClient.newHttpClient().send(
+        request, HttpResponse.BodyHandlers.ofString());
+    if (response.statusCode() >= 400) throw new RuntimeException(response.body());
+    System.out.println(response.body());
+  }
+}
+```
+
+
+
+Add `?download=1` to download the audio. Signed audio URLs expire after about 10 minutes and must not be exposed publicly.
+
+```json
+{
+  "id": "gen_01J...",
+  "text": "Your order is ready.",
+  "voice": {"id": "voice_01J...", "name": "Lison Neutral", "language": "en"},
+  "speed": 1,
+  "duration_ms": 1180,
+  "sample_rate": 24000,
+  "audio_url": "https://storage.example/signed-url...",
+  "audio_url_expires_at": "2026-08-16T12:10:00Z",
+  "request_id": "req_01J..."
+}
+```
+
+## Delete a generation
+
+**DELETE https://api.voicelab.uz/v1/tts/generations/{generation_id}**
+
+Delete one generation and its private audio.
+
+Authentication: `Bearer vlk_...`.
+
+
+
+```bash
+curl -fS -X DELETE \
+  'https://api.voicelab.uz/v1/tts/generations/gen_01J...' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY"
+```
+
+```python
+import os
+import requests
+
+generation_id = "gen_01J..."
+response = requests.delete(
+    f"https://api.voicelab.uz/v1/tts/generations/{generation_id}",
+    headers={"Authorization": f"Bearer {os.environ['VOICELAB_API_KEY']}"},
+    timeout=30,
+)
+response.raise_for_status()
+assert response.status_code == 204
+```
+
+```ts
+const generationId = "gen_01J...";
+const response = await fetch(
+  `https://api.voicelab.uz/v1/tts/generations/${generationId}`,
+  {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${process.env.VOICELAB_API_KEY}` },
+  },
+);
+
+if (!response.ok) throw new Error(await response.text());
+if (response.status !== 204) throw new Error(`Unexpected status: ${response.status}`);
+```
+
+```java
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+
+public final class Main {
+  public static void main(String[] args) throws Exception {
+    var generationId = "gen_01J...";
+    var request = HttpRequest.newBuilder(URI.create(
+            "https://api.voicelab.uz/v1/tts/generations/" + generationId))
+        .header("Authorization", "Bearer " + System.getenv("VOICELAB_API_KEY"))
+        .DELETE()
+        .build();
+
+    var response = HttpClient.newHttpClient().send(
+        request, HttpResponse.BodyHandlers.discarding());
+    if (response.statusCode() != 204) {
+      throw new RuntimeException("Unexpected status: " + response.statusCode());
+    }
+  }
+}
+```
+
+
+
+Requires `tts:write` and returns `204 No Content`.
+
+## Realtime speech
+
+**WSS wss://api.voicelab.uz/v1/tts/stream**
+
+Stream raw 24 kHz PCM16 audio over one WebSocket.
+
+Authentication: `xvl-api-key: vlk_...`.
+
+Server clients authenticate during the WebSocket upgrade with `xvl-api-key`. The key needs `tts:realtime` permission.
+
+
+
+```python
+import json
+import os
+from pathlib import Path
+
+import websocket
+
+ws = websocket.create_connection(
+    "wss://api.voicelab.uz/v1/tts/stream",
+    header=[f"xvl-api-key: {os.environ['VOICELAB_API_KEY']}"],
+    timeout=30,
+)
+print(json.loads(ws.recv()))  # ready
+
+ws.send(json.dumps({
+    "text": "Hello from realtime VoiceLab.",
+    "language": "en",
+    "voice_id": "voice_01J9NEUTRAL0000000000000001",
+    "speed": 1,
+}))
+
+with Path("speech.pcm").open("wb") as output:
+    while True:
+        frame = ws.recv()
+        if isinstance(frame, bytes):
+            output.write(frame)
+            continue
+        event = json.loads(frame)
+        if event.get("event") in {"done", "error"}:
+            break
+
+ws.close()
+```
+
+```ts
+import { writeFile } from "node:fs/promises";
+import WebSocket from "ws";
+
+const apiKey = process.env.VOICELAB_API_KEY;
+if (!apiKey) throw new Error("VOICELAB_API_KEY is not set");
+
+const ws = new WebSocket("wss://api.voicelab.uz/v1/tts/stream", {
+  headers: { "xvl-api-key": apiKey },
+});
+const chunks: Buffer[] = [];
+
+ws.on("message", async (data, isBinary) => {
+  if (isBinary) {
+    chunks.push(Buffer.from(data));
+    return;
+  }
+
+  const event = JSON.parse(data.toString());
+  if (event.event === "ready") {
+    ws.send(JSON.stringify({
+      text: "Hello from realtime VoiceLab.",
+      language: "en",
+      voice_id: "voice_01J9NEUTRAL0000000000000001",
+      speed: 1,
+    }));
+  }
+
+  if (event.event === "done") {
+    await writeFile("speech.pcm", Buffer.concat(chunks));
+    ws.close();
+  }
+  if (event.event === "error") throw new Error(event.message);
+});
+```
+
+```java
+import java.io.ByteArrayOutputStream;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.WebSocket;
+import java.nio.ByteBuffer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.concurrent.CompletionStage;
+import java.util.concurrent.CountDownLatch;
+
+public final class RealtimeTts {
+public static void main(String[] args) throws Exception {
+var audio = new ByteArrayOutputStream();
+var finished = new CountDownLatch(1);
+
+WebSocket.Listener listener = new WebSocket.Listener() {
+  private final StringBuilder text = new StringBuilder();
+
+  @Override public void onOpen(WebSocket socket) { socket.request(1); }
+
+  @Override public CompletionStage<?> onText(
+      WebSocket socket, CharSequence data, boolean last) {
+    text.append(data);
+    if (last) {
+      String event = text.toString();
+      text.setLength(0);
+      if (event.contains("\"ready\"")) {
+        socket.sendText("""
+          {"text":"Hello from realtime VoiceLab.","language":"en",
+           "voice_id":"voice_01J9NEUTRAL0000000000000001","speed":1}
+          """, true);
+      }
+      if (event.contains("\"done\"") || event.contains("\"error\"")) {
+        finished.countDown();
+      }
+    }
+    socket.request(1);
+    return null;
+  }
+
+  @Override public CompletionStage<?> onBinary(
+      WebSocket socket, ByteBuffer data, boolean last) {
+    byte[] chunk = new byte[data.remaining()];
+    data.get(chunk);
+    audio.writeBytes(chunk);
+    socket.request(1);
+    return null;
+  }
+};
+
+WebSocket socket = HttpClient.newHttpClient().newWebSocketBuilder()
+    .header("xvl-api-key", System.getenv("VOICELAB_API_KEY"))
+    .buildAsync(URI.create("wss://api.voicelab.uz/v1/tts/stream"), listener)
+    .join();
+
+finished.await();
+Files.write(Path.of("speech.pcm"), audio.toByteArray());
+socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").join();
+}
+}
+```
+
+```bash
+wscat -c 'wss://api.voicelab.uz/v1/tts/stream' \
+  -H "xvl-api-key: $VOICELAB_API_KEY"
+
+# Send after the ready event:
+{"text":"Hello from realtime VoiceLab.","language":"en","voice_id":"voice_01J9NEUTRAL0000000000000001","speed":1}
+```
+
+
+
+The server sends `ready` first:
+
+```json
+{"event":"ready","format":"pcm_s16le","sample_rate":24000,"channels":1}
+```
+
+Send one text request per connection. `text` accepts up to 8 KiB, and `speed` accepts `0.5` to `2.0`. Binary frames contain signed 16-bit little-endian mono PCM. They are not WAV files. The final event is `{"event":"done","duration_ms":1420}`.
+
+Send `{"action":"interrupt"}` to stop active synthesis. The server returns `{"event":"interrupted"}`.
+
+### Browser authentication
+
+Browsers cannot set `xvl-api-key` on a WebSocket. Your backend must mint a short-lived ticket:
+
+**POST https://api.voicelab.uz/v1/ticket**
+
+Mint a ticket for one browser WebSocket connection.
+
+Authentication: `Bearer vlk_...`.
+
+Content-Type: `application/json`.
+
+```json
+{"transport":"websocket","service":"tts"}
+```
+
+Both `transport` and `service` are required. Success is `201 Created`, not `200`.
+Connect to `wss://api.voicelab.uz/v1/tts/stream?ticket=<short-lived-ticket>`.
+Both TTS and STT accept tickets or server-side `xvl-api-key`, but never both on
+one handshake. A ticket minted with `service=stt` cannot authorize TTS; create
+a fresh `service=tts` ticket. Tickets expire after about two minutes. Do not
+store them or include them in logs. Keep the long-lived key on your backend.
+
+Realtime errors include `invalid_message`, `validation_error`, `busy`, `not_busy`, `insufficient_credits`, `overloaded`, `timeout`, `service_unavailable`, and `generation_failed`.
+
+## Errors
+
+| Status | Code | Fix |
+| ---: | --- | --- |
+| `400` | `invalid_json`, `invalid_idempotency_key` | Fix the body or key |
+| `401` | `invalid_api_key` | Send a valid API key |
+| `402` | `insufficient_credits` | Add credits |
+| `403` | `insufficient_scope` | Update key permissions or allowed IPs |
+| `404` | `voice_unavailable`, `generation_not_found` | Refresh the voice or generation ID |
+| `409` | `idempotency_key_reused` | Use a new key for changed input |
+| `422` | `validation_error` | Correct fields listed in `error.fields` |
+| `429` | `rate_limited`, `overloaded` | Wait for `Retry-After`, then retry |
+| `500`, `503` | `internal_error`, `service_unavailable` | Retry with the same idempotency key |
+
+---
+
+Source: https://docs.voicelab.uz/api/voice-isolator
+
+# Voice Isolator
+
+Remove background noise from audio and optionally restore speech with Sidon. Upload a file, poll its job, then download the processed audio. Processing continues after the upload request finishes.
+
+## Authentication
+
+Use a server-side developer API key with **Voice Isolator → Access**, permission ID `audio_isolation`. Access grants `audio_isolation:read` and `audio_isolation:write`. Restricted keys need this permission added explicitly. See [API keys](https://docs.voicelab.uz/api/authentication).
+
+| Credential | Route prefix | Purpose |
+| --- | --- | --- |
+| Developer API key | `/v1/voice-isolations` | Server integrations documented here |
+| User access JWT | `/api/v1/voice-isolations` | VoiceLab dashboard |
+
+Jobs belong to the account. A permitted key can retrieve jobs created by another key or by the dashboard on that account. Other accounts cannot access them.
+
+## Isolate audio
+
+**POST https://api.voicelab.uz/v1/voice-isolations**
+
+Submit an asynchronous audio isolation job.
+
+Authentication: `Bearer vlk_...`.
+
+Content-Type: `multipart/form-data`.
+
+Requires `audio_isolation:write`.
+
+### Headers and fields
+
+| Header | Required | Value |
+| --- | --- | --- |
+| `Authorization` | yes | `Bearer <VOICELAB_API_KEY>` |
+| `Idempotency-Key` | yes | UUID generated once per logical upload; reuse for retries |
+| `Content-Type` | yes | Multipart boundary generated by your HTTP client |
+
+| Multipart field | Required | Value |
+| --- | --- | --- |
+| `file` | yes | One audio file |
+| `title` | no | Up to 512 UTF-8 bytes; default `Isolated audio` |
+| `speech_restoration` | no | Text `true` or `false`; default `false` |
+| `restoration_model` | no | `sidon`; valid only when restoration is `true` |
+
+Denoising always runs. Enabling restoration runs Sidon afterwards. New jobs do not accept `lavasr`. An unavailable restoration stage returns an error rather than silently changing the requested processing.
+
+The same idempotency key and content return the original job without another credit hold. Changing audio, title, or processing options with that key returns `409`. Keys are scoped per developer API key, separately from dashboard uploads.
+
+### Limits
+
+| Limit | Value |
+| --- | --- |
+| Single upload | 300 MiB, or 314,572,800 bytes |
+| Batch upload | 1–4 files, 300 MiB combined |
+| Minimum decoded duration | 0.5 seconds per file |
+| Maximum recording duration | No separate duration limit; decode resource budgets and execution timeouts still apply |
+| Input | Exactly one audio stream; common MP3, WAV, M4A, AAC, OGG, WebM, FLAC and AIFF inputs |
+
+The API inspects and decodes the audio. A supported filename extension alone does not establish validity. Multipart metadata has a separate small allowance. Capacity limits can return `429`; respect `Retry-After`.
+
+### Request examples
+
+These examples run on your server. Set `VOICELAB_API_KEY` in the environment. Let the client generate the multipart boundary. Retain the generated UUID if you retry the upload.
+
+
+
+```bash
+request_key=$(uuidgen)
+curl --fail-with-body -i 'https://api.voicelab.uz/v1/voice-isolations' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY" \
+  -H "Idempotency-Key: $request_key" \
+  -F 'file=@speech.mp3' \
+  -F 'title=Interview' \
+  -F 'speech_restoration=true'
+```
+
+```python
+import os
+import uuid
+import requests
+
+request_key = str(uuid.uuid4())
+with open("speech.mp3", "rb") as audio:
+    response = requests.post(
+        "https://api.voicelab.uz/v1/voice-isolations",
+        headers={
+            "Authorization": f"Bearer {os.environ['VOICELAB_API_KEY']}",
+            "Idempotency-Key": request_key,
+        },
+        files={"file": ("speech.mp3", audio, "audio/mpeg")},
+        data={"title": "Interview", "speech_restoration": "true"},
+        timeout=900,
+    )
+response.raise_for_status()
+print(response.json()["id"])
+```
+
+```ts
+import { readFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
+
+const requestKey = randomUUID();
+const form = new FormData();
+form.append("file", new Blob([new Uint8Array(await readFile("speech.mp3"))]), "speech.mp3");
+form.append("title", "Interview");
+form.append("speech_restoration", "true");
+
+const response = await fetch("https://api.voicelab.uz/v1/voice-isolations", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${process.env.VOICELAB_API_KEY}`,
+    "Idempotency-Key": requestKey,
+  },
+  body: form,
+  signal: AbortSignal.timeout(900_000),
+});
+if (!response.ok) throw new Error(`Upload failed: ${response.status}`);
+console.log((await response.json()).id);
+```
+
+
+
+### Response and polling
+
+Returns `202 Accepted`, `Location: /v1/voice-isolations/{id}`, and `Retry-After: 3`. A replay returns the existing job with its current status. Example fields, with a hypothetical quote of 120 credits for one minute:
+
+```json
+{
+  "id": "iso_550e8400-e29b-41d4-a716-446655440000",
+  "title": "Interview",
+  "status": "queued",
+  "duration_ms": 60000,
+  "credits": 120,
+  "audio_available": false,
+  "audio_format": "mp3",
+  "speech_restoration": true,
+  "restoration_model": "sidon",
+  "created_at": "2026-09-08T10:00:00Z",
+  "updated_at": "2026-09-08T10:00:00Z",
+  "request_id": "req_example"
+}
+```
+
+`credits` is the reserved quote. The configured rate determines the amount; this example is not a fixed tariff.
+
+| Field | Meaning |
+| --- | --- |
+| `status` | `queued`, `running`, `completed`, or `failed` |
+| `processing_stage` | When present: `noise_reduction`, `speech_restoration`, or `finalizing` |
+| `audio_available` | A retained processed master is available; this alone does not mean MP3 is ready |
+| `audio_status` | Default MP3 preparation: `queued`, `running`, `completed`, or `failed`, when present |
+| `audio_url` | Temporary MP3 download URL once preparation completes |
+| `error_code` | Safe failure code when the job fails |
+| `completed_at` | Processing completion timestamp, when present |
+| `original_filename`, `original_content_type`, `original_available` | Retained upload metadata |
+| `original_audio_url`, `input_audio_url`, `denoised_audio_url` | Detail-only signed links for available original, normalized input, and denoised audio |
+| `output_sample_rate` | Output sample rate; does not establish job completion |
+| `batch_id`, `batch_index` | Batch membership and upload order |
+
+Poll detail every three seconds while the job is queued/running. When `status=completed`, keep polling while MP3 preparation is queued/running. Download when `audio_status=completed` and `audio_url` exists. Stop on job failure or MP3 conversion failure and handle that state explicitly. There are no completion webhooks.
+
+## Batch isolation
+
+**POST https://api.voicelab.uz/v1/voice-isolations/batch**
+
+Submit one to four files atomically.
+
+Authentication: `Bearer vlk_...`.
+
+Content-Type: `multipart/form-data`.
+
+Requires `audio_isolation:write` and a UUID `Idempotency-Key`. Send repeated `files` parts with the same optional `speech_restoration` and `restoration_model` fields as a single upload. Processing options apply to every file; filenames become job titles.
+
+```bash
+request_key=$(uuidgen)
+curl --fail-with-body 'https://api.voicelab.uz/v1/voice-isolations/batch' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY" \
+  -H "Idempotency-Key: $request_key" \
+  -F 'files=@first.mp3' \
+  -F 'files=@second.wav' \
+  -F 'speech_restoration=true'
+```
+
+Returns `202` with an `isb_…` batch `id` and jobs in `data`, preserving `batch_index`. Validation and credit reservation are atomic: an invalid or unaffordable batch admits no jobs. Preserve file order, filenames, bytes and options on retry. Poll each child job by ID; there is no separate batch polling route.
+
+## List isolations
+
+**GET https://api.voicelab.uz/v1/voice-isolations**
+
+List the account's visible isolation history.
+
+Authentication: `Bearer vlk_...`.
+
+Requires `audio_isolation:read`. Optional `limit` defaults to 20 and accepts 1–50. Pass the returned opaque `next_cursor` as `cursor` for the next page.
+
+```bash
+curl --fail-with-body 'https://api.voicelab.uz/v1/voice-isolations?limit=20' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY"
+```
+
+Returns `200` with `data` containing jobs in descending creation order and optional `next_cursor`. History includes all job states. List responses omit signed audio URLs; request detail for playback or downloads.
+
+## Get an isolation
+
+**GET https://api.voicelab.uz/v1/voice-isolations/{id}**
+
+Read job state and renew available audio URLs.
+
+Authentication: `Bearer vlk_...`.
+
+Requires `audio_isolation:read`. Returns `200` with the job. Unknown jobs and jobs belonging to another account return `404`.
+
+```bash
+curl --fail-with-body 'https://api.voicelab.uz/v1/voice-isolations/iso_REPLACE_ME' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY"
+```
+
+Signed audio URLs expire after ten minutes. Fetch detail again for fresh URLs. Download the returned storage URL without forwarding your API key. Store the job ID for future access rather than relying on an old URL.
+
+## Hide an isolation
+
+**DELETE https://api.voicelab.uz/v1/voice-isolations/{id}**
+
+Hide a job from history without erasing its audio.
+
+Authentication: `Bearer vlk_...`.
+
+Requires `audio_isolation:write`. Returns `204 No Content` on success. Hiding does not cancel processing, refund completed work, or delete stored files. Original uploads, normalized inputs, denoised/restored audio and exports are retained indefinitely, including hidden jobs.
+
+```bash
+curl --fail-with-body -X DELETE 'https://api.voicelab.uz/v1/voice-isolations/iso_REPLACE_ME' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY"
+```
+
+## Create an export
+
+**POST https://api.voicelab.uz/v1/voice-isolations/{id}/exports**
+
+Prepare a download in the requested format.
+
+Authentication: `Bearer vlk_...`.
+
+Content-Type: `application/json`.
+
+Requires `audio_isolation:write`. Send `{"format":"flac"}`. Supported values are `mp3`, `wav`, `flac`, `ogg`, and `original` for the untouched upload. Processed exports require an available final master; otherwise the API returns `409 audio_not_ready`. The original upload can be available before processing completes.
+
+```bash
+curl --fail-with-body -X POST 'https://api.voicelab.uz/v1/voice-isolations/iso_REPLACE_ME/exports' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY" \
+  -H 'Content-Type: application/json' \
+  -d '{"format":"flac"}'
+```
+
+Queued/running exports return `202` with `Retry-After: 2`. Completed or failed exports return `200`; inspect `status`. Exports reuse stored audio, do not rerun inference, and do not charge additional credits.
+
+## Get an export
+
+**GET https://api.voicelab.uz/v1/voice-isolations/{id}/exports/{format}**
+
+Poll an export or retrieve its current download URL.
+
+Authentication: `Bearer vlk_...`.
+
+Requires `audio_isolation:read`. A read-only key can retrieve existing exports; requesting a new conversion requires write permission. Poll queued/running conversions every two seconds.
+
+```bash
+curl --fail-with-body 'https://api.voicelab.uz/v1/voice-isolations/iso_REPLACE_ME/exports/flac' \
+  -H "Authorization: Bearer $VOICELAB_API_KEY"
+```
+
+Example completed response:
+
+```json
+{
+  "job_id": "iso_550e8400-e29b-41d4-a716-446655440000",
+  "format": "flac",
+  "status": "completed",
+  "filename": "Interview.flac",
+  "audio_url": "https://storage.example.com/audio.flac?signature=EXAMPLE"
+}
+```
+
+The example URL is a placeholder. Use the actual `audio_url` without an Authorization header.
+
+## Billing and errors
+
+Credits are reserved at admission, rounded up per file at the configured per-minute rate, and debited once when processing succeeds. Terminal processing failures release the hold. Sidon restoration and exports have no separate surcharge. MP3 readiness is separate from successful inference and billing. See [pricing](https://docs.voicelab.uz/guide/pricing).
+
+A key's credit limit includes its recorded billable usage and pending isolation reservations. Revoking a key prevents new access but does not cancel accepted jobs. Usage is attributed to the submitting key under `voice_enhancer` in [analytics](https://docs.voicelab.uz/api/analytics).
+
+| HTTP status | Meaning |
+| --- | --- |
+| `400` | Missing/invalid UUID, malformed multipart or export JSON, invalid pagination |
+| `401` | Invalid, expired, disabled or revoked API key |
+| `403` | Missing scope or denied source IP |
+| `402` | Insufficient credits or `api_key_credit_limit` |
+| `404` | Feature unavailable, unknown job or another account's job |
+| `409` | Conflicting idempotent retry or `audio_not_ready` |
+| `413` | Upload exceeds the size limit |
+| `422` | Invalid audio, processing options or export format |
+| `429` | Upload or job capacity exceeded |
+| `503` | Processing service or requested restoration stage unavailable |
+
+Honor `Retry-After` for capacity failures. Retry transient upload failures with the original idempotency key and identical content. Do not retry authorization or validation failures unchanged. Keep `request_id` for support. See [errors and limits](https://docs.voicelab.uz/api/errors).
+
+---
+
+Source: https://docs.voicelab.uz/api/voices
+
+# Voices and TTS capabilities
+
+Discover supported voices, languages, models, formats, and sample rates before generating speech.
+
+## List voices
+
+**GET https://api.voicelab.uz/v1/voices?language=en**
+
+List voices available for a supported language.
+
+Authentication: `Bearer vlk_...`.
+
+Requires `voices:read`. `language` is optional; if supplied it must be a code
+returned by `GET /v1/tts/languages`.
+
+Use `/v1/voices` as the canonical route. `GET /v1/tts/voices` is a compatibility
+alias with identical authentication, visibility, filters and pagination.
+
+Example response:
+
+```json
+{
+  "data": [
+    {
+      "id": "voice_01J9NEUTRAL0000000000000001",
+      "display_name": "Lison Neutral",
+      "description": "A clear, balanced voice for everyday narration.",
+      "language": "en",
+      "kind": "system",
+      "visibility": "public",
+      "short_description": "Tiniq · muvozanatli",
+      "orb_palette": "calm"
+    }
+  ],
+  "request_id": "req_01J..."
+}
+```
+
+Use the returned opaque `id` as `voice_id` in TTS requests. Do not use a
+display name or an internal provider/model identifier.
+
+The catalog is account-scoped. Unrestricted system voices are available to all
+authenticated accounts; restricted system voices appear only for allowed users.
+Private custom voices are returned only to their owner. Approved public custom
+voices may also appear, subject to language and availability rules. A voice ID
+does not bypass authorization for synthesis.
+
+## List languages and model metadata
+
+**GET https://api.voicelab.uz/v1/tts/languages**
+
+List supported languages and public TTS model metadata.
+
+Authentication: `Bearer vlk_...`.
+
+Requires `tts:read`. The response contains:
+
+- `provider`: public product name, currently `Lison-VoiceLab`.
+- `sample_rate`: current default output rate, currently `24000`.
+- `data`: enabled language codes and names.
+- `models`: public model cards and output formats.
+
+The public response never exposes internal provider names such as OmniVoice or
+Triton model names. The current public model is presented as `VoiceLab Lison`
+with the `Studio Quality` badge.
+
+Example model output metadata:
+
+```json
+{
+  "id": "lison",
+  "name": "VoiceLab Lison",
+  "badge": "Studio Quality",
+  "description": "Natural, expressive multilingual speech for voiceovers, audiobooks, narration, and content creation.",
+  "recommended": true,
+  "languages": ["en", "uz", "ru"],
+  "outputs": [
+    {
+      "format": "wav",
+      "label": "WAV 24 kHz (Lossless)",
+      "content_type": "audio/wav",
+      "sample_rate": 24000,
+      "streaming": false
+    }
+  ]
+}
+```
+
+Use `models[].id` only as a display/catalog identifier. The TTS request does
+not currently accept a model field; VoiceLab selects the configured model.
+
+## Language selection in a client
+
+A safe client flow is:
+
+1. Call `/v1/tts/languages` with a key that has `tts:read`.
+2. Render `data[].name` and `data[].native_name`.
+3. Store `data[].code` when the user selects a language.
+4. Call `/v1/voices?language={code}` with a key that has `voices:read`.
+5. Store `voices[].id` and send it as `voice_id` to `/v1/tts`.
+
+Do not hardcode a list of languages or assume every voice supports every
+language. The catalog can change without changing the API version.
+
+## Current output limitations
+
+The current product output is:
+
+- WAV only;
+- 24,000 Hz;
+- mono;
+- 16-bit PCM;
+- complete output after generation.
+
+MP3, selectable bitrate, selectable sample rate, and streaming encoded audio
+should be enabled only when they appear in the `outputs` array. A client must
+not show an MP3 option merely because another provider supports it.

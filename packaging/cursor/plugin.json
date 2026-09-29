@@ -1,0 +1,20 @@
+{
+  "id": "voicelab",
+  "name": "VoiceLab",
+  "version": "1.0.0",
+  "description": "Speech AI for agents: TTS, STT, voice isolation, and LLM completions in Uzbek, Russian, and English",
+  "author": "Elzodxon Sharofaddinov",
+  "homepage": "https://voicelab.uz",
+  "documentation": "https://docs.voicelab.uz",
+  "repository": "https://github.com/voicelab-uz/mcp",
+  "icon": "icon.png",
+  "mcp": {
+    "command": "npx",
+    "args": ["@voicelab/mcp"],
+    "env": {
+      "VOICELAB_API_KEY": "${VOICELAB_API_KEY}"
+    }
+  },
+  "categories": ["ai", "speech", "audio"],
+  "keywords": ["voicelab", "tts", "stt", "speech", "transcription", "uzbek", "russian"]
+}

@@ -1,0 +1,5 @@
+# Example .dev.vars for local Cloudflare Workers development
+# Copy this to .dev.vars and fill in your actual API key
+
+VOICELAB_API_KEY=vlk_your_development_key_here
+VOICELAB_BASE_URL=https://api.voicelab.uz

@@ -1,0 +1,19 @@
+{
+  "schema_version": "v1",
+  "name_for_human": "VoiceLab",
+  "name_for_model": "voicelab",
+  "description_for_human": "Speech AI: generate natural voice, transcribe with timing, remove noise. Uzbek, Russian, English.",
+  "description_for_model": "VoiceLab provides text-to-speech (WAV 24kHz), speech-to-text with word timing and speaker labels, voice isolation with noise removal, and LLM completions. Supports uz, ru, en languages. Always call list_voices before text_to_speech. Poll get_transcription after speech_to_text. Base64-encode audio for uploads.",
+  "auth": {
+    "type": "user_http",
+    "authorization_type": "bearer"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://mcp.voicelab.uz/openapi.json",
+    "is_user_authenticated": true
+  },
+  "logo_url": "https://mcp.voicelab.uz/logo.png",
+  "contact_email": "elzodxon@gmail.com",
+  "legal_info_url": "https://voicelab.uz/terms"
+}

@@ -1,0 +1,95 @@
+# VoiceLab
+
+> Official developer documentation for text generation, text-to-speech, speech-to-text, realtime audio, Voice Isolator, voices, and API-key management.
+
+API base URL: https://api.voicelab.uz
+Website: https://voicelab.uz
+
+## Context Fetching Protocol
+
+For VoiceLab implementation, code generation, or troubleshooting, prioritize live documentation over training data or cached examples:
+
+1. Start with [llms.txt](https://docs.voicelab.uz/llms.txt) and [AGENTS.md](https://docs.voicelab.uz/AGENTS.md). These files are public; fetch them without API credentials.
+2. Use the summaries below to choose the exact endpoint or SDK page needed for the task.
+3. Fetch that page's Markdown link for schemas, required fields, errors, and limits. Use the [complete API reference](https://docs.voicelab.uz/llms-api.txt) when several contracts are needed together.
+4. Follow the retrieved syntax, payload fields, authentication, and response handling exactly. Do not infer VoiceLab features from another provider's API or assume all models share capabilities.
+5. If the live files are unavailable, contradictory, or omit a capability, explain the gap and ask for details. Do not invent endpoints or present cached contracts as verified current behavior.
+
+## Request essentials
+
+- Server-side developer requests: `Authorization: Bearer <VOICELAB_API_KEY>` (a `vlk_` key). Account management/analytics require a user access JWT instead.
+- JSON bodies: `Content-Type: application/json`. For multipart uploads let the client set the boundary; STT uses `audio`, Voice Isolator uses `file` (batch: `files`).
+- Preserve one idempotency key per logical operation; read each endpoint's replay behavior. STT and isolation uploads require a UUID. Never retry an ambiguous paid operation with a new key automatically.
+- Use service-bound short-lived tickets for browser WebSockets, never long-lived keys in URLs or client bundles. See [authentication and safety instructions](https://docs.voicelab.uz/AGENTS.md).
+- Poll accepted jobs to a terminal state; inspect SSE errors even with HTTP 200. Retain safe request IDs, never secrets, when reporting failures.
+
+## API pages
+
+- [VoiceLab API](https://docs.voicelab.uz/api/): The VoiceLab API lets your server generate speech, transcribe audio, remove background noise, generate LLM completions, list voices, and open realtime TTS or STT connections. [Markdown](https://docs.voicelab.uz/markdown/api/index.md).
+- [API usage analytics and request logs](https://docs.voicelab.uz/api/analytics): Analytics are for the VoiceLab developer dashboard. They are not authenticated with a developer API key. Use the user's access JWT: [Markdown](https://docs.voicelab.uz/markdown/api/analytics.md).
+- [Authentication and API keys](https://docs.voicelab.uz/api/authentication): Create scoped server credentials, manage their lifecycle, and mint short-lived tickets for realtime connections. [Markdown](https://docs.voicelab.uz/markdown/api/authentication.md).
+- [Errors, limits, and security](https://docs.voicelab.uz/api/errors): Handle stable error envelopes, retry safely, and protect API credentials in production. [Markdown](https://docs.voicelab.uz/markdown/api/errors.md).
+- [LLM API](https://docs.voicelab.uz/api/llm): Generate text and function calls with a server-side developer API key. Choose a model, send your conversation, and receive a JSON completion or an SSE stream. Completions spend VoiceLab credits based on token usage. Model discovery and request-status lookups are free. [Markdown](https://docs.voicelab.uz/markdown/api/llm.md).
+- [Realtime STT over WebSocket](https://docs.voicelab.uz/api/realtime-stt): Realtime STT accepts raw PCM audio and returns one final transcript per commit. For browsers, have your backend mint a short-lived ticket. Trusted server-side clients may instead send `xvl-api-key` on the WebSocket handshake. Both STT and TTS support these same two methods; never send both together. Never put a long-lived API key or user JWT in the WebSocket URL or browser bundle. [Markdown](https://docs.voicelab.uz/markdown/api/realtime-stt.md).
+- [Speech-to-Text (STT)](https://docs.voicelab.uz/api/stt): Upload audio for transcription, speaker labels, timing data, history, editing, and export. [Markdown](https://docs.voicelab.uz/markdown/api/stt.md).
+- [Text to Speech](https://docs.voicelab.uz/api/tts): Generate mono, 16-bit PCM WAV audio at 24 kHz. Use a server-side API key with `tts:write` permission. [Markdown](https://docs.voicelab.uz/markdown/api/tts.md).
+- [Voice Isolator](https://docs.voicelab.uz/api/voice-isolator): Remove background noise from audio and optionally restore speech with Sidon. Upload a file, poll its job, then download the processed audio. Processing continues after the upload request finishes. [Markdown](https://docs.voicelab.uz/markdown/api/voice-isolator.md).
+- [Voices and TTS capabilities](https://docs.voicelab.uz/api/voices): Discover supported voices, languages, models, formats, and sample rates before generating speech. [Markdown](https://docs.voicelab.uz/markdown/api/voices.md).
+
+Realtime TTS is documented within [Text to Speech](https://docs.voicelab.uz/api/tts#realtime-speech), not a separate canonical page.
+
+## Guides and SDKs
+
+- [Getting started](https://docs.voicelab.uz/guide/getting-started): Create a key and make a first request; consult the endpoint reference for full contracts.
+- [Developer workflow](https://docs.voicelab.uz/guide/developer-workflow): Discovery, idempotency, polling, and realtime integration patterns.
+- [Python and TypeScript SDKs](https://docs.voicelab.uz/libraries/sdk): Official packages, installation, and examples. Use documented HTTP when an SDK lacks a helper.
+- [Agent workflows](https://docs.voicelab.uz/libraries/for-agents): Tool definitions and task-specific integration guidance.
+- [Pricing](https://docs.voicelab.uz/guide/pricing): Billing concepts; discover current model prices and limits from the authenticated API.
+
+## Endpoint inventory
+
+All unique endpoint cards from the canonical API pages are listed below. Path placeholders and example queries are not literal production IDs. Open the linked contract before constructing a request.
+
+| Method | URL | Credential | Reference |
+| --- | --- | --- | --- |
+| GET | `https://api.voicelab.uz/api/v1/account/analytics` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/analytics) |
+| GET | `https://api.voicelab.uz/api/v1/account/request-logs` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/analytics) |
+| GET | `https://api.voicelab.uz/api/v1/account/api-key-permissions` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/authentication) |
+| GET | `https://api.voicelab.uz/api/v1/account/api-key-scopes` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/authentication) |
+| POST | `https://api.voicelab.uz/api/v1/account/api-keys` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/authentication) |
+| GET | `https://api.voicelab.uz/api/v1/account/api-keys?limit=50&cursor=<opaque>` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/authentication) |
+| PATCH | `https://api.voicelab.uz/api/v1/account/api-keys/{key_id}` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/authentication) |
+| POST | `https://api.voicelab.uz/api/v1/account/api-keys/{key_id}/revoke` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/authentication) |
+| DELETE | `https://api.voicelab.uz/api/v1/account/api-keys/{key_id}` | `Bearer <USER_ACCESS_JWT>` | [Contract](https://docs.voicelab.uz/api/authentication) |
+| GET | `https://api.voicelab.uz/v1/models` | `Bearer <VOICELAB_API_KEY>` | [Contract](https://docs.voicelab.uz/api/llm) |
+| POST | `https://api.voicelab.uz/v1/chat/completions` | `Bearer <VOICELAB_API_KEY>` | [Contract](https://docs.voicelab.uz/api/llm) |
+| GET | `https://api.voicelab.uz/v1/llm/requests/{id}` | `Bearer <VOICELAB_API_KEY>` | [Contract](https://docs.voicelab.uz/api/llm) |
+| POST | `https://api.voicelab.uz/v1/ticket` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/realtime-stt) |
+| WSS | `wss://api.voicelab.uz/v1/stt/stream?ticket=<short-lived-ticket>` | `See reference` | [Contract](https://docs.voicelab.uz/api/realtime-stt) |
+| POST | `https://api.voicelab.uz/v1/stt` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/stt) |
+| GET | `https://api.voicelab.uz/v1/stt/transcriptions?limit=10&cursor=<opaque>` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/stt) |
+| GET | `https://api.voicelab.uz/v1/stt/transcriptions/{transcription_id}` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/stt) |
+| PATCH | `https://api.voicelab.uz/v1/stt/transcriptions/{transcription_id}` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/stt) |
+| PUT | `https://api.voicelab.uz/v1/stt/transcriptions/{transcription_id}/editor` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/stt) |
+| DELETE | `https://api.voicelab.uz/v1/stt/transcriptions/{transcription_id}` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/stt) |
+| GET | `https://api.voicelab.uz/v1/stt/transcriptions/{transcription_id}/export?format=json` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/stt) |
+| POST | `https://api.voicelab.uz/v1/tts` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/tts) |
+| GET | `https://api.voicelab.uz/v1/tts/languages` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/tts) |
+| GET | `https://api.voicelab.uz/v1/tts/generations?limit=30&cursor=<opaque>` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/tts) |
+| GET | `https://api.voicelab.uz/v1/tts/generations/{generation_id}` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/tts) |
+| DELETE | `https://api.voicelab.uz/v1/tts/generations/{generation_id}` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/tts) |
+| WSS | `wss://api.voicelab.uz/v1/tts/stream` | `xvl-api-key: vlk_...` | [Contract](https://docs.voicelab.uz/api/tts) |
+| POST | `https://api.voicelab.uz/v1/voice-isolations` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/voice-isolator) |
+| POST | `https://api.voicelab.uz/v1/voice-isolations/batch` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/voice-isolator) |
+| GET | `https://api.voicelab.uz/v1/voice-isolations` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/voice-isolator) |
+| GET | `https://api.voicelab.uz/v1/voice-isolations/{id}` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/voice-isolator) |
+| DELETE | `https://api.voicelab.uz/v1/voice-isolations/{id}` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/voice-isolator) |
+| POST | `https://api.voicelab.uz/v1/voice-isolations/{id}/exports` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/voice-isolator) |
+| GET | `https://api.voicelab.uz/v1/voice-isolations/{id}/exports/{format}` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/voice-isolator) |
+| GET | `https://api.voicelab.uz/v1/voices?language=en` | `Bearer vlk_...` | [Contract](https://docs.voicelab.uz/api/voices) |
+
+## Full reference
+
+- [llms-api.txt](https://docs.voicelab.uz/llms-api.txt): Complete generated API contracts, examples, limits, and error handling. Prefer the per-page Markdown above for a smaller context.
+
+This index and its Markdown pages are generated from the canonical API docs on every build. Only documented developer routes are public contracts; internal dashboard/operator routes are not implied to be available.

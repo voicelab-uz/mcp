@@ -1,0 +1,68 @@
+{
+  "connector": {
+    "name": "VoiceLab",
+    "version": "1.0.0",
+    "description": "Speech AI for Muse agents: natural text-to-speech, accurate transcription with timing and speaker labels, voice isolation with noise removal, and LLM completions. Supports Uzbek, Russian, and English languages.",
+    "author": "Elzodxon Sharofaddinov",
+    "contact": "elzodxon@gmail.com",
+    "homepage": "https://voicelab.uz",
+    "documentation": "https://docs.voicelab.uz",
+    "repository": "https://github.com/voicelab-uz/mcp"
+  },
+  "integration": {
+    "type": "mcp",
+    "endpoint": "https://mcp.voicelab.uz/mcp",
+    "protocol": "json-rpc",
+    "authentication": {
+      "type": "api_key",
+      "method": "bearer",
+      "env_variable": "VOICELAB_API_KEY",
+      "instructions": "Get your API key at voicelab.uz after signing up. Go to Settings → API Keys → Create Key."
+    }
+  },
+  "capabilities": {
+    "text_to_speech": {
+      "languages": ["uz", "ru", "en"],
+      "formats": ["wav"],
+      "sample_rate": 24000,
+      "features": ["speed_control", "multiple_voices"]
+    },
+    "speech_to_text": {
+      "languages": ["uz", "ru", "en"],
+      "formats": ["mp3", "wav", "m4a", "ogg", "webm", "flac"],
+      "features": ["speaker_diarization", "word_timing", "export_srt_vtt"]
+    },
+    "voice_isolation": {
+      "features": ["noise_removal", "speech_restoration"]
+    },
+    "llm": {
+      "models": ["aisha-comet", "aisha-orbit", "aisha-halo"],
+      "features": ["chat_completion", "token_usage_tracking"]
+    }
+  },
+  "prompts": {
+    "examples": [
+      "Generate Uzbek TTS for this product description with a natural voice",
+      "Transcribe this meeting audio with speaker labels and word timing",
+      "Remove background noise from this call recording",
+      "List available Uzbek voices for narration",
+      "Create an LLM completion using Aisha model: What is the capital of Uzbekistan?"
+    ]
+  },
+  "media": {
+    "icon": "https://mcp.voicelab.uz/logo-512.png",
+    "screenshots": [
+      "https://mcp.voicelab.uz/screenshots/tts-generation.png",
+      "https://mcp.voicelab.uz/screenshots/stt-transcription.png",
+      "https://mcp.voicelab.uz/screenshots/voice-isolation.png"
+    ],
+    "demo_video": "https://mcp.voicelab.uz/demo.mp4"
+  },
+  "legal": {
+    "privacy_policy": "https://voicelab.uz/privacy",
+    "terms_of_service": "https://voicelab.uz/terms",
+    "license": "MIT"
+  },
+  "categories": ["ai", "speech", "audio", "nlp", "language"],
+  "tags": ["tts", "stt", "speech", "transcription", "uzbek", "russian", "voice", "audio"]
+}
