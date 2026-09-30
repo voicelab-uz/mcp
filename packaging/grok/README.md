@@ -1,58 +1,32 @@
 # Grok Marketplace Package
 
-This folder contains configuration for xAI Grok plugin marketplace submission.
+Canonical plugin source lives at:
 
-## Repository Structure
+https://github.com/voicelab-uz/grok-plugin
 
-```
-voicelab-mcp-plugin/
-├── plugin.json
-├── README.md
-├── LICENSE
-└── examples/
-```
+That repo ships:
 
-## plugin.json
+- `.grok-plugin/plugin.json` — Grok Build manifest
+- `.mcp.json` — hosted MCP at `https://mcp.voicelab.uz/mcp` with Bearer `${VOICELAB_MCP_AUTH_TOKEN}`
+- `README.md` / `LICENSE`
 
-```json
-{
-  "name": "VoiceLab",
-  "description": "Speech AI for agents: text-to-speech, speech-to-text with timing, voice isolation, LLM completions in Uzbek/Russian/English",
-  "mcp_endpoint": "https://mcp.voicelab.uz/mcp",
-  "author": "VoiceLab",
-  "homepage": "https://voicelab.uz",
-  "documentation": "https://docs.voicelab.uz",
-  "repository": "https://github.com/voicelab/voicelab-mcp",
-  "keywords": ["voicelab", "aisha", "tts", "stt", "speech", "uzbek"],
-  "domains": ["voicelab.uz", "docs.voicelab.uz"],
-  "version": "1.0.0",
-  "authentication": {
-    "type": "bearer_token",
-    "env_variable": "VOICELAB_API_KEY"
-  }
-}
-```
+This folder mirrors those files for the VoiceLab MCP monorepo. Prefer the
+dedicated `voicelab-uz/grok-plugin` remote source in the xAI marketplace
+(SHA-pinned), matching other third-party plugins.
 
-## Submission
+## Auth (what Grok users paste)
 
-1. Create plugin repo under VoiceLab GitHub org
-2. Add plugin.json with SHA-pinned remote source
-3. Fork [xai-org/plugin-marketplace](https://github.com/xai-org/plugin-marketplace)
-4. Add plugin to catalog
-5. Regenerate plugin-index.json
-6. Submit PR
+| Credential | Paste in Grok? |
+|---|---|
+| MCP gateway token → `VOICELAB_MCP_AUTH_TOKEN` | **Yes** (`Authorization: Bearer …`) |
+| VoiceLab API key `vlk_…` | **No** (server-side only) |
 
-## CLI Usage
+## Marketplace submission
 
-```bash
-# User installs
-grok mcp add --transport http voicelab https://mcp.voicelab.uz/mcp
+1. Publish/update https://github.com/voicelab-uz/grok-plugin
+2. Fork https://github.com/xai-org/plugin-marketplace
+3. Add remote entry to `.grok-plugin/marketplace.json` with pinned SHA
+4. Run `python3 scripts/generate-plugin-index.py` and `validate-catalog.py`
+5. Open PR
 
-# Or custom endpoint
-grok.com/connectors → Custom → MCP URL
-```
-
-## Keywords
-
-Brand keywords: `voicelab`, `aisha`
-Domains: `voicelab.uz`, `docs.voicelab.uz`
+See [SUBMISSION.md](SUBMISSION.md).

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "voicelab": {
+      "type": "http",
+      "url": "https://mcp.voicelab.uz/mcp",
+      "headers": {
+        "Authorization": "Bearer ${VOICELAB_MCP_AUTH_TOKEN}"
+      },
+      "note": "Official VoiceLab hosted MCP (streamable HTTP). Requires Authorization: Bearer <VOICELAB_MCP_AUTH_TOKEN> — the MCP gateway token from the VoiceLab MCP operator (not your VoiceLab API key; the API key stays server-side)."
+    }
+  }
+}
