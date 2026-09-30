@@ -79,7 +79,7 @@ Or if installed globally:
 
 ## Remote Usage (ChatGPT, Grok, Muse)
 
-Once deployed to Cloudflare Workers, agents can connect to the hosted endpoint:
+Once deployed (VPS HTTP + nginx, or Cloudflare Workers), agents can connect to the hosted endpoint:
 
 ### ChatGPT / OpenAI Plugins
 
@@ -119,6 +119,42 @@ voicelab-mcp
 ```bash
 npm run start:http
 ```
+
+HTTP mode binds to `127.0.0.1:3100` by default (`HOST` / `PORT`). Put nginx (or another TLS terminator) in front.
+
+#### HTTP environment variables
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `VOICELAB_API_KEY` | _(required)_ | VoiceLab API key used by tools |
+| `VOICELAB_BASE_URL` | `https://api.voicelab.uz` | API origin (must be HTTPS and allowlisted) |
+| `MCP_AUTH_TOKEN` | _(empty)_ | If set, `/mcp` requires `Authorization: Bearer <token>` |
+| `ALLOWED_ORIGINS` | _(empty)_ | Comma-separated browser origins for CORS; empty disables CORS reflection (no `*`) |
+| `MAX_BODY_BYTES` | `10485760` | Max request body size (10 MiB) |
+| `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` | `120` / `60000` | App-level rate limit per client IP |
+| `HOST` / `PORT` | `127.0.0.1` / `3100` | Listen address (keep loopback in production) |
+
+#### MCP Bearer auth (clients)
+
+When `MCP_AUTH_TOKEN` is set on the server, every `/mcp` request must include:
+
+```http
+Authorization: Bearer <MCP_AUTH_TOKEN>
+Accept: application/json, text/event-stream
+Content-Type: application/json
+```
+
+Example initialize:
+
+```bash
+curl -sS https://mcp.voicelab.uz/mcp \
+  -H "Authorization: Bearer $MCP_AUTH_TOKEN" \
+  -H "Accept: application/json, text/event-stream" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"curl","version":"0"}}}'
+```
+
+Public discovery (no auth): `GET /health`, `GET /v1`, `GET /.well-known/mcp.json`.
 
 ### Available Tools
 

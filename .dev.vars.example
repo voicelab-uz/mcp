@@ -3,3 +3,10 @@
 
 VOICELAB_API_KEY=vlk_your_development_key_here
 VOICELAB_BASE_URL=https://api.voicelab.uz
+
+# Optional HTTP hardening (Node --http / VPS)
+# MCP_AUTH_TOKEN=
+# ALLOWED_ORIGINS=https://chatgpt.com,https://claude.ai
+# MAX_BODY_BYTES=10485760
+# HOST=127.0.0.1
+# PORT=3100

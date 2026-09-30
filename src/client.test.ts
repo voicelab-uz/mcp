@@ -1,19 +1,60 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { VoiceLabClient, VoiceLabError } from './client.js';
+import {
+  VoiceLabClient,
+  VoiceLabError,
+  resolveSafeBaseUrl,
+  buildSafeUrl,
+} from './client.js';
 
 describe('VoiceLabClient', () => {
   it('should create a client with default base URL', () => {
     const client = new VoiceLabClient({ apiKey: 'vlk_test' });
-    assert.ok(client);
+    assert.strictEqual(client.getBaseUrl(), 'https://api.voicelab.uz');
   });
 
-  it('should create a client with custom base URL', () => {
-    const client = new VoiceLabClient({
-      apiKey: 'vlk_test',
-      baseUrl: 'https://custom.example.com',
-    });
-    assert.ok(client);
+  it('should reject non-allowlisted custom base URL', () => {
+    assert.throws(
+      () =>
+        new VoiceLabClient({
+          apiKey: 'vlk_test',
+          baseUrl: 'https://custom.example.com',
+        }),
+      /allowlist/
+    );
+  });
+
+  it('should allow custom origin when listed in VOICELAB_ALLOWED_API_ORIGINS', () => {
+    const prev = process.env.VOICELAB_ALLOWED_API_ORIGINS;
+    process.env.VOICELAB_ALLOWED_API_ORIGINS = 'https://custom.example.com';
+    try {
+      const client = new VoiceLabClient({
+        apiKey: 'vlk_test',
+        baseUrl: 'https://custom.example.com',
+      });
+      assert.strictEqual(client.getBaseUrl(), 'https://custom.example.com');
+    } finally {
+      if (prev === undefined) delete process.env.VOICELAB_ALLOWED_API_ORIGINS;
+      else process.env.VOICELAB_ALLOWED_API_ORIGINS = prev;
+    }
+  });
+});
+
+describe('resolveSafeBaseUrl / buildSafeUrl', () => {
+  it('rejects http base URLs', () => {
+    assert.throws(() => resolveSafeBaseUrl('http://api.voicelab.uz'), /https/);
+  });
+
+  it('rejects absolute path overrides (SSRF)', () => {
+    assert.throws(
+      () => buildSafeUrl('https://api.voicelab.uz', 'https://evil.example/'),
+      /Absolute URLs/
+    );
+  });
+
+  it('builds relative paths under the API origin', () => {
+    const url = buildSafeUrl('https://api.voicelab.uz', '/v1/voices');
+    assert.strictEqual(url.toString(), 'https://api.voicelab.uz/v1/voices');
   });
 });
 
