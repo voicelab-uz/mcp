@@ -13,11 +13,20 @@ import { VoicesModule } from './voices.js';
 import { VoiceIsolatorModule } from './isolator.js';
 import { RealtimeModule } from './realtime.js';
 import { registerTools } from './tools.js';
+import { 
+  type OAuthConfig, 
+  type VerifiedOAuthUser,
+  getOAuthResourceMetadata, 
+  getWWWAuthenticateHeader, 
+  verifyRequest,
+} from './oauth.js';
 
 const VERSION = '1.0.0';
-const API_KEY = process.env.VOICELAB_API_KEY;
+const FALLBACK_API_KEY = process.env.VOICELAB_API_KEY;
 const BASE_URL = process.env.VOICELAB_BASE_URL || 'https://api.voicelab.uz';
 const MCP_AUTH_TOKEN = process.env.MCP_AUTH_TOKEN || '';
+const OAUTH_ISSUER = process.env.OAUTH_ISSUER || '';
+const OAUTH_AUDIENCE = process.env.OAUTH_AUDIENCE || 'https://mcp.voicelab.uz';
 const MAX_BODY_BYTES = Number(process.env.MAX_BODY_BYTES || 10 * 1024 * 1024);
 const REQUEST_TIMEOUT_MS = Number(process.env.REQUEST_TIMEOUT_MS || 120_000);
 const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000);
@@ -27,13 +36,20 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
   .map((s) => s.trim())
   .filter(Boolean);
 
-if (!API_KEY) {
-  console.error('Error: VOICELAB_API_KEY environment variable is required');
+// Per-user API keys from OAuth require fallback key OR OAuth issuer
+if (!FALLBACK_API_KEY && !OAUTH_ISSUER) {
+  console.error('Error: Either VOICELAB_API_KEY (fallback) or OAUTH_ISSUER must be set');
   process.exit(1);
 }
 
-function createMcpServer(): Server {
-  const client = new VoiceLabClient({ apiKey: API_KEY!, baseUrl: BASE_URL });
+/**
+ * Create MCP server with per-user or fallback API key
+ * 
+ * @param apiKey - VoiceLab API key (from OAuth JWT or fallback)
+ * @param verifiedUser - OAuth user info (for profile tool)
+ */
+function createMcpServer(apiKey: string, verifiedUser?: VerifiedOAuthUser | 'legacy'): Server {
+  const client = new VoiceLabClient({ apiKey, baseUrl: BASE_URL });
   const modules = {
     llm: new LLMModule(client),
     tts: new TTSModule(client),
@@ -54,8 +70,16 @@ function createMcpServer(): Server {
       },
     }
   );
-  registerTools(server, modules);
+  registerTools(server, modules, verifiedUser);
   return server;
+}
+
+function getOAuthConfig(): OAuthConfig {
+  return {
+    issuer: OAUTH_ISSUER || undefined,
+    audience: OAUTH_AUDIENCE || undefined,
+    legacyToken: MCP_AUTH_TOKEN || undefined,
+  };
 }
 
 function applySecurityHeaders(res: ServerResponse): void {
@@ -186,10 +210,43 @@ function healthBody() {
 }
 
 function discoveryBody() {
+  const config = getOAuthConfig();
+  const oauthMeta = getOAuthResourceMetadata(config);
+
+  let authInfo: any;
+  if (oauthMeta) {
+    authInfo = {
+      type: 'oauth2',
+      scheme: 'bearer',
+      header: 'Authorization',
+      format: 'Bearer <access_token>',
+      note: 'OAuth 2.1 via VoiceLab. Per-user API keys extracted from JWTs. Legacy Bearer tokens supported for non-OpenAI clients.',
+      oauth: {
+        authorization_servers: oauthMeta.authorization_servers,
+        scopes: oauthMeta.scopes_supported,
+        resource: oauthMeta.resource,
+        issuer: config.issuer,
+      },
+    };
+  } else if (MCP_AUTH_TOKEN) {
+    authInfo = {
+      type: 'http',
+      scheme: 'bearer',
+      header: 'Authorization',
+      format: 'Bearer <token>',
+      note: 'Required for /mcp. Obtain token from the VoiceLab MCP operator.',
+    };
+  } else {
+    authInfo = {
+      type: 'none',
+      note: 'No authentication configured. Set OAUTH_ISSUER or MCP_AUTH_TOKEN to enable.',
+    };
+  }
+
   return {
     name: 'voicelab-mcp',
     version: VERSION,
-    description: 'VoiceLab Model Context Protocol server',
+    description: 'VoiceLab Model Context Protocol server with OAuth 2.1 per-user billing',
     protocol: 'mcp',
     transport: 'streamable-http',
     links: {
@@ -197,19 +254,9 @@ function discoveryBody() {
       health: '/health',
       documentation: 'https://docs.voicelab.uz',
       repository: 'https://github.com/voicelab-uz/mcp',
+      ...(oauthMeta ? { oauth_resource_metadata: '/.well-known/oauth-protected-resource' } : {}),
     },
-    auth: MCP_AUTH_TOKEN
-      ? {
-          type: 'http',
-          scheme: 'bearer',
-          header: 'Authorization',
-          format: 'Bearer <token>',
-          note: 'Required for /mcp. Obtain token from the VoiceLab MCP operator.',
-        }
-      : {
-          type: 'none',
-          note: 'MCP_AUTH_TOKEN is not configured; /mcp is open to the network path that reaches this process.',
-        },
+    auth: authInfo,
     endpoints: {
       mcp: {
         path: '/mcp',
@@ -217,13 +264,24 @@ function discoveryBody() {
         accept: ['application/json', 'text/event-stream'],
       },
       health: { path: '/health', methods: ['GET'] },
+      ...(oauthMeta ? {
+        oauth_metadata: {
+          path: '/.well-known/oauth-protected-resource',
+          methods: ['GET'],
+        },
+      } : {}),
     },
   };
 }
 
-async function handleMcpRequest(req: IncomingMessage, res: ServerResponse): Promise<void> {
+async function handleMcpRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  apiKey: string,
+  verifiedUser?: VerifiedOAuthUser | 'legacy'
+): Promise<void> {
   applySecurityHeaders(res);
-  const server = createMcpServer();
+  const server = createMcpServer(apiKey, verifiedUser);
   const transport = new StreamableHTTPServerTransport({
     sessionIdGenerator: undefined,
   });
@@ -241,12 +299,29 @@ async function handleMcpRequest(req: IncomingMessage, res: ServerResponse): Prom
 async function startHttp(): Promise<void> {
   const host = process.env.HOST || '127.0.0.1';
   const port = Number(process.env.PORT || 3100);
+  const authConfig = getOAuthConfig();
 
-  if (MCP_AUTH_TOKEN) {
-    console.error('MCP Bearer auth: enabled for /mcp');
-  } else {
-    console.error('MCP Bearer auth: disabled (set MCP_AUTH_TOKEN to enable)');
+  console.error('=== VoiceLab MCP Server Starting ===');
+  
+  if (OAUTH_ISSUER) {
+    console.error('OAuth 2.1: enabled (VoiceLab AS)');
+    console.error(`  Issuer: ${OAUTH_ISSUER}`);
+    console.error(`  Audience: ${OAUTH_AUDIENCE}`);
+    console.error('  Per-user billing: API keys extracted from JWTs');
   }
+  
+  if (MCP_AUTH_TOKEN) {
+    console.error('Legacy auth: static Bearer token enabled for fallback');
+  }
+  
+  if (FALLBACK_API_KEY) {
+    console.error('Fallback API key: available for non-OAuth users');
+  }
+  
+  if (!OAUTH_ISSUER && !MCP_AUTH_TOKEN) {
+    console.error('Auth: disabled (set OAUTH_ISSUER or MCP_AUTH_TOKEN to enable)');
+  }
+  
   if (ALLOWED_ORIGINS.length > 0) {
     console.error(`CORS allowlist: ${ALLOWED_ORIGINS.length} origin(s)`);
   } else {
@@ -303,6 +378,21 @@ async function startHttp(): Promise<void> {
         return;
       }
 
+      if (path === '/.well-known/oauth-protected-resource') {
+        if (req.method !== 'GET' && req.method !== 'HEAD') {
+          res.setHeader('Allow', 'GET, HEAD');
+          sendApiError(res, 405, 'method_not_allowed', 'Method not allowed');
+          return;
+        }
+        const metadata = getOAuthResourceMetadata(authConfig);
+        if (!metadata) {
+          sendApiError(res, 404, 'not_found', 'OAuth not configured');
+          return;
+        }
+        sendJson(res, 200, metadata);
+        return;
+      }
+
       if (path === '/mcp') {
         const method = req.method || 'GET';
         if (method !== 'POST' && method !== 'GET' && method !== 'DELETE') {
@@ -311,11 +401,32 @@ async function startHttp(): Promise<void> {
           return;
         }
 
-        if (!isAuthorized(req)) {
-          res.setHeader('WWW-Authenticate', 'Bearer');
-          // Uniform message — do not distinguish missing vs wrong token.
+        // Verify OAuth JWT or legacy token
+        const verified = await verifyRequest(req, authConfig);
+        if (!verified) {
+          res.setHeader('WWW-Authenticate', getWWWAuthenticateHeader(authConfig));
           sendApiError(res, 401, 'unauthorized', 'Unauthorized');
           return;
+        }
+
+        // Extract API key: per-user from OAuth JWT, or fallback for legacy
+        let apiKey: string;
+        if (verified !== 'legacy' && verified.voicelab_api_key) {
+          // OAuth user - use their personal API key from JWT (per-user billing)
+          apiKey = verified.voicelab_api_key;
+          console.error(`OAuth user: ${verified.sub} (using per-user API key)`);
+        } else {
+          // Legacy token or OAuth without API key - use fallback
+          if (!FALLBACK_API_KEY) {
+            sendApiError(
+              res,
+              503,
+              'no_api_key',
+              'No per-user API key in JWT and no fallback key configured'
+            );
+            return;
+          }
+          apiKey = FALLBACK_API_KEY;
         }
 
         if ((method === 'POST' || method === 'DELETE') && contentLengthTooLarge(req)) {
@@ -325,7 +436,7 @@ async function startHttp(): Promise<void> {
         }
 
         try {
-          await handleMcpRequest(req, res);
+          await handleMcpRequest(req, res, apiKey, verified);
         } catch (error) {
           const err = error as Error;
           console.error('MCP error:', err?.name || 'Error', err?.message || 'unknown');
@@ -367,10 +478,15 @@ async function startHttp(): Promise<void> {
 }
 
 async function startStdio(): Promise<void> {
-  const server = createMcpServer();
+  // Stdio mode uses fallback API key (no per-user billing in stdio)
+  if (!FALLBACK_API_KEY) {
+    console.error('Error: VOICELAB_API_KEY required for stdio mode');
+    process.exit(1);
+  }
+  const server = createMcpServer(FALLBACK_API_KEY, 'legacy');
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error('VoiceLab MCP server running on stdio');
+  console.error('VoiceLab MCP server running on stdio (using fallback API key)');
 }
 
 async function main(): Promise<void> {

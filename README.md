@@ -79,14 +79,28 @@ Or if installed globally:
 
 ## Remote Usage (ChatGPT, Grok, Muse)
 
-Once deployed (VPS HTTP + nginx, or Cloudflare Workers), agents can connect to the hosted endpoint:
+Once deployed (VPS HTTP + nginx, or Cloudflare Workers), agents can connect to the hosted endpoint.
 
 ### ChatGPT / OpenAI Plugins
 
-Add MCP endpoint in ChatGPT settings:
-```
-https://mcp.voicelab.uz/mcp
-```
+OpenAI Plugins require **OAuth 2.1** authentication with per-user billing (static API keys are not supported).
+
+**Quick Setup:**
+1. VoiceLab backend implements OAuth AS (see [`BACKEND_OAUTH_SPEC.md`](./BACKEND_OAUTH_SPEC.md))
+2. Configure MCP server:
+   ```bash
+   export OAUTH_ISSUER='https://auth.voicelab.uz'
+   export OAUTH_AUDIENCE='https://mcp.voicelab.uz'
+   export VOICELAB_API_KEY='vlk_fallback_...'  # For non-OAuth clients
+   ```
+3. Register plugin in ChatGPT: `https://mcp.voicelab.uz`
+
+ChatGPT discovers OAuth via `/.well-known/oauth-protected-resource` and initiates authorization-code + PKCE flow with VoiceLab.
+
+**Per-User Billing**: OAuth JWTs contain each user's VoiceLab API key in the `voicelab_api_key` claim. MCP extracts this key and uses it for all API calls, charging the correct user's account.
+
+**Full documentation**: [docs/OAUTH_INTEGRATION.md](./docs/OAUTH_INTEGRATION.md)  
+**Backend requirements**: [BACKEND_OAUTH_SPEC.md](./BACKEND_OAUTH_SPEC.md)
 
 ### Grok
 
@@ -126,13 +140,33 @@ HTTP mode binds to `127.0.0.1:3100` by default (`HOST` / `PORT`). Put nginx (or 
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `VOICELAB_API_KEY` | _(required)_ | VoiceLab API key used by tools |
-| `VOICELAB_BASE_URL` | `https://api.voicelab.uz` | API origin (must be HTTPS and allowlisted) |
-| `MCP_AUTH_TOKEN` | _(empty)_ | If set, `/mcp` requires `Authorization: Bearer <token>` |
-| `ALLOWED_ORIGINS` | _(empty)_ | Comma-separated browser origins for CORS; empty disables CORS reflection (no `*`) |
+| `VOICELAB_API_KEY` | _(optional)_ | Fallback API key for legacy token users; OAuth users get per-user keys from JWT |
+| `VOICELAB_BASE_URL` | `https://api.voicelab.uz` | VoiceLab API origin (must be HTTPS and allowlisted) |
+| **OAuth 2.1 (OpenAI)** | | |
+| `OAUTH_ISSUER` | _(empty)_ | VoiceLab OAuth issuer (e.g., `https://auth.voicelab.uz`) — enables OAuth |
+| `OAUTH_AUDIENCE` | `https://mcp.voicelab.uz` | MCP resource identifier (audience claim in JWTs) |
+| **Legacy Auth** | | |
+| `MCP_AUTH_TOKEN` | _(empty)_ | Static Bearer token for non-OpenAI clients (Cursor, Claude, Grok) |
+| **Server Config** | | |
+| `ALLOWED_ORIGINS` | _(empty)_ | Comma-separated browser origins for CORS; empty disables CORS reflection |
 | `MAX_BODY_BYTES` | `10485760` | Max request body size (10 MiB) |
 | `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` | `120` / `60000` | App-level rate limit per client IP |
 | `HOST` / `PORT` | `127.0.0.1` / `3100` | Listen address (keep loopback in production) |
+
+#### Dual Authentication Mode
+
+The server supports **both OAuth 2.1 and legacy Bearer tokens** simultaneously:
+
+- **OAuth (VoiceLab AS)**: Required for OpenAI ChatGPT/Codex Plugins. Enable by setting `OAUTH_ISSUER`.
+  - Per-user billing: JWTs contain user's API key in `voicelab_api_key` claim
+  - MCP extracts this key and charges the correct user's VoiceLab account
+- **Legacy Token**: Works for Cursor, Claude Desktop, Grok, and other MCP clients. Enable by setting `MCP_AUTH_TOKEN`.
+- **Coexistence**: Both can be active — OpenAI clients use OAuth, others use the legacy token.
+- **Fallback Key**: `VOICELAB_API_KEY` used when legacy token auth succeeds or JWT missing per-user key.
+
+**Why Per-User Keys?** OpenAI ChatGPT users share one MCP endpoint. Without per-user keys, all users would charge a single shared VoiceLab account. OAuth JWTs carry each user's API key, ensuring correct billing attribution.
+
+See [docs/OAUTH_INTEGRATION.md](./docs/OAUTH_INTEGRATION.md) for OAuth setup and [BACKEND_OAUTH_SPEC.md](./BACKEND_OAUTH_SPEC.md) for backend implementation requirements.
 
 #### MCP Bearer auth (clients)
 
