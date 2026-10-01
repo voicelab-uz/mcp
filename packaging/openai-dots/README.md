@@ -1,65 +1,188 @@
-# OpenAI Dots / ChatGPT Plugins Package
+# OpenAI Agent Plugins (2026) Package
 
-This folder contains configuration for submitting to the OpenAI Plugins Directory.
+This package contains the complete submission bundle for VoiceLab MCP in the OpenAI Plugins Directory (2026 Agent Plugins format).
 
-## Requirements
+## Package Structure
 
-- Public HTTPS MCP endpoint (e.g., `https://mcp.voicelab.uz/mcp`)
-- Domain verification file at `/.well-known/openai-apps-challenge`
-- Plugin ZIP with manifest
-- Review materials (test cases, demo video)
+```
+packaging/openai-dots/
+├── plugin/                          # Plugin source (ZIP this folder)
+│   ├── plugin.json                  # Agent Plugins manifest (required)
+│   ├── mcp.json                     # MCP server connection config
+│   ├── assets/                      # Icons and images
+│   │   ├── logo.png                 # 512x512 plugin logo (⚠️ PLACEHOLDER)
+│   │   ├── icon.png                 # 256x256 composer icon (⚠️ PLACEHOLDER)
+│   │   └── PLACEHOLDER_NOTICE.txt   # Asset replacement instructions
+│   └── skills/                      # Onboarding and help skills
+│       └── get-started/
+│           └── SKILL.md             # Getting started guide
+├── build-plugin.sh                  # Build ZIP for submission
+├── README.md                        # This file
+└── SUBMISSION.md                    # Submission checklist and guide
+```
 
-## plugin.json
+## 2026 Agent Plugins Format
 
-```json
-{
-  "schema_version": "v1",
-  "name_for_human": "VoiceLab",
-  "name_for_model": "voicelab",
-  "description_for_human": "Speech AI: generate natural voice, transcribe with timing, remove noise. Uzbek, Russian, English.",
-  "description_for_model": "VoiceLab provides text-to-speech (WAV 24kHz), speech-to-text with word timing and speaker labels, voice isolation with noise removal, and LLM completions. Supports uz, ru, en languages. Use list_voices before TTS, poll get_transcription after STT.",
-  "auth": {
-    "type": "user_http",
-    "authorization_type": "bearer",
-    "authorization_content_type": "application/json"
-  },
-  "api": {
-    "type": "mcp",
-    "url": "https://mcp.voicelab.uz/mcp",
-    "is_user_authenticated": true
-  },
-  "logo_url": "https://mcp.voicelab.uz/logo.png",
-  "contact_email": "support@voicelab.uz",
-  "legal_info_url": "https://voicelab.uz/terms"
+OpenAI now uses the **Agent Plugins** standard (https://agent-plugins.org) instead of the legacy ChatGPT ai-plugin.json format.
+
+### Key Changes from Legacy Format
+
+| Legacy (ai-plugin.json) | 2026 (plugin.json) |
+|------------------------|-------------------|
+| `name_for_human/model` | `name`, `extensions.com.openai.interface.displayName` |
+| OpenAPI spec reference | MCP server in `mcp.json` |
+| Installed via manifest URL | Uploaded as ZIP package |
+| Manual domain verification | Same verification process |
+
+### What's Included
+
+1. **plugin.json** - Agent Plugins schema v1.0.0 manifest with:
+   - Core metadata (id, version, name, description)
+   - Author and contact info
+   - OpenAI interface extensions (display name, descriptions, capabilities)
+   - Legal URLs (privacy, terms, support)
+   - Test cases (5 positive, 3 negative with real tool names)
+   - Release notes
+
+2. **mcp.json** - MCP server connection:
+   - Remote streamable-http transport
+   - Server URL: `https://mcp.voicelab.uz/mcp`
+
+3. **skills/** - Onboarding content:
+   - `get-started/SKILL.md` - Getting started guide for users
+
+4. **assets/** - Visual assets:
+   - `logo.png` - Plugin listing logo (512x512)
+   - `icon.png` - Composer icon (256x256)
+   - ⚠️ **Currently placeholders** - replace with real VoiceLab assets
+
+## Submission Workflow (2026)
+
+### 1. Prerequisites
+
+- ✅ MCP server deployed: `https://mcp.voicelab.uz/mcp`
+- ⚠️ Real logo assets (replace placeholders in `plugin/assets/`)
+- ✅ Privacy policy: `https://voicelab.uz/privacy`
+- ✅ Terms of service: `https://voicelab.uz/terms`
+- ✅ Support docs: `https://docs.voicelab.uz`
+
+### 2. Build Plugin ZIP
+
+```bash
+cd packaging/openai-dots
+./build-plugin.sh
+```
+
+This creates `voicelab-openai-plugin.zip` from the `plugin/` directory.
+
+### 3. Submit to OpenAI
+
+1. Go to https://platform.openai.com/plugins
+2. Click **"Upload plugin ZIP"**
+3. Upload `voicelab-openai-plugin.zip`
+4. OpenAI scans the ZIP and extracts:
+   - `plugin.json` manifest
+   - `mcp.json` MCP configuration
+   - Skills and assets
+5. Click **"Connect MCP"** - OpenAI tests connection to `https://mcp.voicelab.uz/mcp`
+6. Complete **domain verification** (see below)
+7. OpenAI scans tools via MCP `tools/list`
+8. Review test cases and submission materials
+9. Click **"Submit for Review"**
+
+### 4. Domain Verification
+
+OpenAI requires proof you control the MCP domain.
+
+**Steps:**
+1. OpenAI portal shows a verification token (e.g., `openai_verify_abc123...`)
+2. Host this token as plain text at:
+   ```
+   https://mcp.voicelab.uz/.well-known/openai-apps-challenge
+   ```
+3. Optionally also host at parent domain:
+   ```
+   https://voicelab.uz/.well-known/openai-apps-challenge
+   ```
+4. Click **"Verify Domain"** in OpenAI portal
+5. OpenAI fetches the file and checks token match
+
+**Example nginx config:**
+```nginx
+location /.well-known/openai-apps-challenge {
+    alias /var/www/openai-verify.txt;
+    default_type text/plain;
 }
 ```
 
+### 5. Review Process
+
+- **Initial review**: 3-5 business days
+- **Test cases**: OpenAI will test all 8 cases (5 positive, 3 negative)
+- **Feedback**: May request changes to descriptions, test cases, or MCP responses
+- **Approval**: Plugin goes live in OpenAI marketplace
+
 ## Test Cases
 
-### Positive
-1. Generate Uzbek TTS: "Generate speech for 'Salom dunyo' in Uzbek"
-2. Transcribe audio with speakers
-3. List models and create completion
-4. Remove background noise
-5. Export transcription as SRT
+Our submission includes 8 test cases using **real tool names** from the VoiceLab MCP:
 
-### Negative
-1. Missing API key → clear error
-2. Invalid voice ID → validation error
-3. Unsupported language → error with supported list
+### Positive (5)
+1. **Generate Uzbek speech** → `list_voices`, `text_to_speech`
+2. **Transcribe with speakers** → `speech_to_text`, `get_transcription`
+3. **List Russian voices** → `list_voices`
+4. **Voice isolation** → `isolate_voice`, `get_isolation`
+5. **LLM completion** → `list_models`, `chat_completions`
 
-## Submission
+### Negative (3)
+1. **Invalid voice ID** → `text_to_speech` error
+2. **Unsupported language** → language validation error
+3. **Missing audio** → parameter validation error
 
-1. Host at `https://mcp.voicelab.uz/mcp`
-2. Domain verify: `/.well-known/openai-apps-challenge`
-3. Package ZIP with plugin.json + mcp config
-4. Submit at https://developers.openai.com/plugins/submit
-5. Provide reviewer test credentials
+All tool names match the actual MCP tools in `src/tools.ts`.
 
-## Domain Verification
+## Authentication
 
-Place at `https://mcp.voicelab.uz/.well-known/openai-apps-challenge`:
+VoiceLab MCP uses Bearer token authentication:
+- Environment variable: `MCP_AUTH_TOKEN` or `VOICELAB_MCP_AUTH_TOKEN`
+- Users provide their VoiceLab API key as the Bearer token
+- OpenAI sends: `Authorization: Bearer <user_api_key>`
 
-```
-{YOUR_VERIFICATION_TOKEN}
-```
+## Known Issues / TODOs
+
+1. ⚠️ **Logo missing** - `https://mcp.voicelab.uz/logo.png` returns 404
+   - Must host logo at this URL or bundle in ZIP
+   - Current `plugin/assets/` contains placeholder notice only
+
+2. ⚠️ **Placeholder assets** - Replace `plugin/assets/PLACEHOLDER_NOTICE.txt` with:
+   - `logo.png` (512x512)
+   - `icon.png` (256x256)
+
+3. **Demo video** - OpenAI may request a demo recording URL
+   - Record a 1-2 minute walkthrough showing:
+     - TTS generation
+     - STT transcription
+     - Voice isolation
+   - Host publicly (YouTube, Loom, etc.)
+   - Add URL to SUBMISSION.md
+
+## Legacy ai-plugin.json
+
+The old `ai-plugin.json` format (ChatGPT Plugins, pre-2026) is still in this directory for reference but is **no longer the primary submission format**.
+
+If needed for backward compatibility:
+- Keep `ai-plugin.json` in repo root or at `/.well-known/ai-plugin.json`
+- Mark as "legacy" in docs
+- Primary path is now the plugin.json ZIP upload
+
+## Resources
+
+- Agent Plugins spec: https://agent-plugins.org
+- OpenAI Plugins docs: https://developers.openai.com/plugins
+- MCP specification: https://modelcontextprotocol.io
+- VoiceLab docs: https://docs.voicelab.uz
+
+## Support
+
+Questions about this package:
+- GitHub: https://github.com/voicelab-uz/mcp
+- Email: elzodxon@gmail.com

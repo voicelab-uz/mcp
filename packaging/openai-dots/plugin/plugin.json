@@ -1,0 +1,109 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "id": "voicelab-mcp",
+  "version": "1.0.0",
+  "name": "VoiceLab",
+  "description": "Speech AI for Uzbek, Russian, and English: text-to-speech with natural voices, speech-to-text with timing and speaker labels, voice isolation with noise removal, and LLM completions.",
+  "author": {
+    "name": "VoiceLab",
+    "email": "elzodxon@gmail.com",
+    "url": "https://voicelab.uz"
+  },
+  "homepage": "https://voicelab.uz",
+  "repository": "https://github.com/voicelab-uz/mcp",
+  "license": "MIT",
+  "extensions": {
+    "com.openai.interface": {
+      "displayName": "VoiceLab",
+      "shortDescription": "Speech AI for Uzbek/Russian/English",
+      "longDescription": "VoiceLab provides production-grade speech AI capabilities through Model Context Protocol (MCP). Generate natural speech in Uzbek, Russian, and English with professional TTS voices. Transcribe audio with word-level timing and speaker diarization. Remove background noise with voice isolation. Access Aisha LLM for Uzbek language understanding. All tools use base64 for audio I/O and support idempotent operations.",
+      "developerName": "VoiceLab",
+      "category": "Productivity",
+      "capabilities": [
+        "Text-to-Speech: Generate speech from text in Uzbek, Russian, and English with natural voices",
+        "Speech-to-Text: Transcribe audio with word timing and optional speaker labels",
+        "Voice Isolation: Remove background noise with optional speech restoration",
+        "LLM Completions: Chat with Aisha models for Uzbek language tasks",
+        "Voice Management: List and discover available voices by language",
+        "Realtime Support: Create WebSocket tickets for streaming TTS/STT"
+      ],
+      "websiteURL": "https://voicelab.uz",
+      "supportURL": "https://docs.voicelab.uz",
+      "privacyPolicyURL": "https://voicelab.uz/privacy",
+      "termsOfServiceURL": "https://voicelab.uz/terms",
+      "defaultPrompts": [
+        "Generate Uzbek speech for: Salom, dunyo!",
+        "Transcribe this audio file with speaker labels",
+        "Remove background noise from this recording"
+      ],
+      "logo": "assets/logo.png",
+      "composerIcon": "assets/icon.png"
+    }
+  },
+  "commerce": {
+    "enabled": false
+  },
+  "review": {
+    "test_cases": [
+      {
+        "type": "positive",
+        "description": "Generate Uzbek speech",
+        "prompt": "Use VoiceLab to generate speech in Uzbek for: Assalomu alaykum",
+        "expected_tools": ["list_voices", "text_to_speech"],
+        "expected_outcome": "Returns base64-encoded WAV audio with Uzbek speech"
+      },
+      {
+        "type": "positive",
+        "description": "Transcribe audio with speakers",
+        "prompt": "Transcribe this audio file with speaker labels using VoiceLab",
+        "expected_tools": ["speech_to_text", "get_transcription"],
+        "expected_outcome": "Returns transcription with word timing and speaker labels"
+      },
+      {
+        "type": "positive",
+        "description": "List available voices by language",
+        "prompt": "Show me all available Russian voices in VoiceLab",
+        "expected_tools": ["list_voices"],
+        "expected_outcome": "Returns list of Russian voices with metadata"
+      },
+      {
+        "type": "positive",
+        "description": "Voice isolation with noise removal",
+        "prompt": "Remove background noise from this audio using VoiceLab",
+        "expected_tools": ["isolate_voice", "get_isolation"],
+        "expected_outcome": "Returns job ID, then isolated audio URL when complete"
+      },
+      {
+        "type": "positive",
+        "description": "LLM chat completion",
+        "prompt": "Use VoiceLab's Aisha model to answer: What is the capital of Uzbekistan?",
+        "expected_tools": ["list_models", "chat_completions"],
+        "expected_outcome": "Returns completion text with token usage"
+      },
+      {
+        "type": "negative",
+        "description": "Invalid voice ID",
+        "prompt": "Generate speech with voice ID 'nonexistent_voice_123'",
+        "expected_tools": ["text_to_speech"],
+        "expected_outcome": "Returns validation error indicating invalid voice_id"
+      },
+      {
+        "type": "negative",
+        "description": "Unsupported language",
+        "prompt": "Generate speech in Klingon language",
+        "expected_tools": ["list_tts_languages"],
+        "expected_outcome": "Returns error or shows only supported languages (uz, ru, en)"
+      },
+      {
+        "type": "negative",
+        "description": "Missing required audio parameter",
+        "prompt": "Transcribe audio without providing any audio file",
+        "expected_tools": ["speech_to_text"],
+        "expected_outcome": "Returns validation error for missing audio_base64 parameter"
+      }
+    ]
+  },
+  "publication": {
+    "release_notes": "Initial release: Full VoiceLab MCP integration with TTS, STT, voice isolation, and LLM capabilities. Supports Uzbek, Russian, and English languages. Base64 audio I/O. Idempotent operations. Async job polling for STT and isolation."
+  }
+}
