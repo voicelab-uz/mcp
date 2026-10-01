@@ -11,6 +11,7 @@ import { VoicesModule } from './voices.js';
 import { VoiceIsolatorModule } from './isolator.js';
 import { RealtimeModule } from './realtime.js';
 import { generateUUID, base64Encode, base64Decode } from './utils.js';
+import { type VerifiedOAuthUser, hasRequiredScope } from './oauth.js';
 
 export interface Modules {
   llm: LLMModule;
@@ -21,7 +22,24 @@ export interface Modules {
   realtime: RealtimeModule;
 }
 
+const oauthSecurityScheme = {
+  type: 'oauth2' as const,
+  scopes: ['openid', 'email', 'profile', 'mcp:tools'],
+};
+
 const tools: Tool[] = [
+  {
+    name: 'get_profile',
+    description: 'Get authenticated user profile information (OpenAI profile tool)',
+    annotations: {
+      readOnlyHint: true,
+      openWorldHint: false,
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {},
+    },
+  },
   {
     name: 'list_models',
     description: 'List available LLM models with pricing and limits',
@@ -370,14 +388,42 @@ const tools: Tool[] = [
   }
 ];
 
-export function registerTools(server: Server, modules: Modules) {
-  server.setRequestHandler(ListToolsRequestSchema, async () => ({
-    tools,
-  }));
+export function registerTools(
+  server: Server,
+  modules: Modules,
+  verifiedUser?: VerifiedOAuthUser | 'legacy'
+) {
+  server.setRequestHandler(ListToolsRequestSchema, async () => {
+    // Add OAuth security schemes to tools that need authentication
+    const toolsWithAuth = tools.map((tool) => {
+      // get_profile is the OpenAI profile tool (special marker)
+      if (tool.name === 'get_profile') {
+        return {
+          ...tool,
+          // Mark as OpenAI profile tool
+          _meta: {
+            'openai/profile': true,
+          },
+        };
+      }
+      // All other tools require OAuth authentication
+      return {
+        ...tool,
+        securitySchemes: [oauthSecurityScheme],
+      };
+    });
+
+    return { tools: toolsWithAuth };
+  });
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     try {
-      return await handleToolCall(request.params.name, request.params.arguments, modules);
+      return await handleToolCall(
+        request.params.name,
+        request.params.arguments,
+        modules,
+        verifiedUser
+      );
     } catch (error: any) {
       return {
         content: [
@@ -400,9 +446,91 @@ export function registerTools(server: Server, modules: Modules) {
   });
 }
 
-export async function handleToolCall(name: string, args: unknown, modules: Modules) {
+export async function handleToolCall(
+  name: string,
+  args: unknown,
+  modules: Modules,
+  verifiedUser?: VerifiedOAuthUser | 'legacy'
+) {
   const toolArgs = (args || {}) as Record<string, any>;
   const { llm, tts, stt, voices, isolator, realtime } = modules;
+
+  // Handle get_profile (OpenAI profile tool)
+  if (name === 'get_profile') {
+    if (!verifiedUser || verifiedUser === 'legacy') {
+      // For legacy tokens or no OAuth, we don't have detailed profile data
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              id: 'voicelab-user',
+              name: 'VoiceLab User',
+              note: 'Using legacy authentication (no OAuth profile)',
+            }, null, 2),
+          },
+        ],
+        _meta: {
+          'openai/profile': true,
+        },
+      };
+    }
+
+    // For OAuth users, return their profile from the JWT
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            id: verifiedUser.sub,
+            name: verifiedUser.name,
+            email: verifiedUser.email,
+          }, null, 2),
+        },
+      ],
+      _meta: {
+        'openai/profile': true,
+      },
+    };
+  }
+
+  // All other tools require authentication
+  if (!verifiedUser) {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            error: 'Unauthorized',
+            message: 'This tool requires authentication. Please authenticate via OAuth.',
+          }, null, 2),
+        },
+      ],
+      isError: true,
+      _meta: {
+        'mcp/www_authenticate': 'Bearer realm="VoiceLab MCP"',
+      },
+    };
+  }
+
+  // For OAuth users: enforce mcp:tools scope (P1-4 fix)
+  if (verifiedUser !== 'legacy' && !hasRequiredScope(verifiedUser, 'mcp:tools')) {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            error: 'Forbidden',
+            message: 'This tool requires the mcp:tools scope. Please re-authorize with the required scope.',
+          }, null, 2),
+        },
+      ],
+      isError: true,
+      _meta: {
+        'mcp/www_authenticate': 'Bearer realm="VoiceLab MCP"',
+      },
+    };
+  }
 
   switch (name) {
     case 'list_models': {
