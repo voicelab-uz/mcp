@@ -11,7 +11,7 @@ import { VoicesModule } from './voices.js';
 import { VoiceIsolatorModule } from './isolator.js';
 import { RealtimeModule } from './realtime.js';
 import { generateUUID, base64Encode, base64Decode } from './utils.js';
-import { type VerifiedOAuthUser } from './oauth.js';
+import { type VerifiedOAuthUser, hasRequiredScope } from './oauth.js';
 
 export interface Modules {
   llm: LLMModule;
@@ -503,6 +503,25 @@ export async function handleToolCall(
           text: JSON.stringify({
             error: 'Unauthorized',
             message: 'This tool requires authentication. Please authenticate via OAuth.',
+          }, null, 2),
+        },
+      ],
+      isError: true,
+      _meta: {
+        'mcp/www_authenticate': 'Bearer realm="VoiceLab MCP"',
+      },
+    };
+  }
+
+  // For OAuth users: enforce mcp:tools scope (P1-4 fix)
+  if (verifiedUser !== 'legacy' && !hasRequiredScope(verifiedUser, 'mcp:tools')) {
+    return {
+      content: [
+        {
+          type: 'text',
+          text: JSON.stringify({
+            error: 'Forbidden',
+            message: 'This tool requires the mcp:tools scope. Please re-authorize with the required scope.',
           }, null, 2),
         },
       ],

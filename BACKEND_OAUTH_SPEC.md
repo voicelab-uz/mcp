@@ -20,6 +20,57 @@ VoiceLab must implement an **OAuth 2.1 Authorization Server** to enable OpenAI C
 
 ---
 
+## 🚨 Critical: Issuer and Audience Alignment
+
+**The `iss` (issuer) claim in JWTs MUST exactly match the MCP server's `OAUTH_ISSUER` environment variable.**
+
+### Environment Variable Mapping
+
+| Component | Env Var Name | Value Example | Purpose |
+|-----------|--------------|---------------|---------|
+| **Backend (AS)** | `OAUTH_ISSUER_URL` | `https://auth.voicelab.uz` | Sets JWT `iss` claim + discovery `issuer` |
+| **MCP (RS)** | `OAUTH_ISSUER` | `https://auth.voicelab.uz` | JWT verification `issuer` check |
+| **Both** | Audience | `https://mcp.voicelab.uz` | JWT `aud` claim (backend) + verification (MCP) |
+
+**Critical Configuration Rules**:
+1. Backend `OAUTH_ISSUER_URL` = MCP `OAUTH_ISSUER` (exact string match, case-sensitive)
+2. Backend must inject `OAUTH_ISSUER_URL` into JWT `iss` claim (no hardcoded issuer in code)
+3. Discovery `issuer` field must equal `OAUTH_ISSUER_URL`
+4. JWT `aud` claim must be `https://mcp.voicelab.uz` (MCP resource identifier)
+5. MCP `OAUTH_AUDIENCE` must match JWT `aud` claim
+
+**Test Before Deploy**:
+```bash
+# Backend
+export OAUTH_ISSUER_URL=https://auth.voicelab.uz
+
+# MCP (MUST match backend OAUTH_ISSUER_URL exactly)
+export OAUTH_ISSUER=https://auth.voicelab.uz
+export OAUTH_AUDIENCE=https://mcp.voicelab.uz
+
+# Verify: decode JWT and check iss/aud match env vars
+```
+
+**Common Mistakes to Avoid**:
+- ❌ Hardcoding issuer in backend code instead of using `OAUTH_ISSUER_URL`
+- ❌ Using different schemes (http vs https) between backend and MCP
+- ❌ Trailing slashes: `https://auth.voicelab.uz` vs `https://auth.voicelab.uz/`
+- ❌ Port mismatch in local dev: `http://localhost:8080` vs `http://127.0.0.1:8080`
+
+**Staging/Local Testing**:
+For non-production environments, both backend and MCP must use the same issuer:
+```bash
+# Staging example
+OAUTH_ISSUER_URL=https://auth-staging.voicelab.uz  # Backend
+OAUTH_ISSUER=https://auth-staging.voicelab.uz      # MCP
+
+# Local example (both must match)
+OAUTH_ISSUER_URL=http://127.0.0.1:8080  # Backend
+OAUTH_ISSUER=http://127.0.0.1:8080      # MCP
+```
+
+---
+
 ## OAuth 2.1 Endpoints Required
 
 VoiceLab backend must implement these endpoints at `https://auth.voicelab.uz` (or `https://api.voicelab.uz/oauth`):
@@ -247,7 +298,11 @@ Access tokens must be JWTs with these claims:
 }
 ```
 
-**Critical**: The `voicelab_api_key` claim enables per-user billing. MCP extracts this key and uses it for VoiceLab API calls, charging the correct user.
+**Critical Claims**:
+- `voicelab_api_key`: Enables per-user billing. MCP extracts this key and uses it for VoiceLab API calls, charging the correct user.
+- `scope`: Must include `mcp:tools` for tool access. **MCP enforces this scope** — JWTs without `mcp:tools` cannot call tools (except `get_profile`).
+- `iss`: Must exactly match MCP `OAUTH_ISSUER` env var for JWT verification to succeed.
+- `aud`: Must exactly match MCP `OAUTH_AUDIENCE` env var for JWT verification to succeed.
 
 ---
 

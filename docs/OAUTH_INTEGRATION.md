@@ -31,10 +31,40 @@ This MCP server acts as an **OAuth 2.1 Resource Server** that verifies VoiceLab-
 
 ```bash
 # VoiceLab OAuth Authorization Server issuer
+# CRITICAL: Must EXACTLY match the 'iss' claim in VoiceLab-issued JWTs
+# Backend sets this via OAUTH_ISSUER_URL - both MUST be identical
 OAUTH_ISSUER=https://auth.voicelab.uz
 
 # This MCP server's resource identifier (audience claim)
+# Must match the 'aud' claim in VoiceLab-issued JWTs
 OAUTH_AUDIENCE=https://mcp.voicelab.uz
+```
+
+### 🚨 Issuer Alignment with Backend
+
+**Critical**: The MCP `OAUTH_ISSUER` must **exactly match** the backend `OAUTH_ISSUER_URL` and the JWT `iss` claim.
+
+| Backend Env | MCP Env | JWT Claim | Must Match |
+|-------------|---------|-----------|------------|
+| `OAUTH_ISSUER_URL` | `OAUTH_ISSUER` | `iss` | ✅ Exact string |
+| (sets `aud` in JWT) | `OAUTH_AUDIENCE` | `aud` | ✅ Exact string |
+
+**Common Issues**:
+- ❌ Backend: `https://auth.voicelab.uz/`, MCP: `https://auth.voicelab.uz` (trailing slash)
+- ❌ Backend: `http://localhost:8080`, MCP: `http://127.0.0.1:8080` (different host)
+- ❌ Backend hardcodes issuer in code, ignoring `OAUTH_ISSUER_URL` env var
+
+**Verification**:
+```bash
+# 1. Check backend discovery
+curl -sS https://auth.voicelab.uz/.well-known/openid-configuration | jq .issuer
+
+# 2. Decode JWT and check iss claim
+TOKEN='eyJhbGc...'
+echo $TOKEN | cut -d. -f2 | base64 -d | jq .iss
+
+# 3. Both must match your MCP OAUTH_ISSUER exactly
+echo $OAUTH_ISSUER
 ```
 
 ### Optional Fallback
@@ -321,6 +351,7 @@ The MCP server verifies:
 - ✅ Audience (`aud` claim) matches `OAUTH_AUDIENCE`
 - ✅ Expiration (`exp` claim) is in the future
 - ✅ Presence of `voicelab_api_key` claim (critical for per-user billing)
+- ✅ **Scope enforcement**: `mcp:tools` scope required for all tool calls (except `get_profile`)
 
 ### Per-User API Key Security
 

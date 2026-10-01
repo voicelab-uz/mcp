@@ -143,8 +143,8 @@ HTTP mode binds to `127.0.0.1:3100` by default (`HOST` / `PORT`). Put nginx (or 
 | `VOICELAB_API_KEY` | _(optional)_ | Fallback API key for legacy token users; OAuth users get per-user keys from JWT |
 | `VOICELAB_BASE_URL` | `https://api.voicelab.uz` | VoiceLab API origin (must be HTTPS and allowlisted) |
 | **OAuth 2.1 (OpenAI)** | | |
-| `OAUTH_ISSUER` | _(empty)_ | VoiceLab OAuth issuer (e.g., `https://auth.voicelab.uz`) — enables OAuth |
-| `OAUTH_AUDIENCE` | `https://mcp.voicelab.uz` | MCP resource identifier (audience claim in JWTs) |
+| `OAUTH_ISSUER` | _(empty)_ | VoiceLab OAuth issuer — enables OAuth. **MUST exactly match backend `OAUTH_ISSUER_URL` and JWT `iss` claim** |
+| `OAUTH_AUDIENCE` | `https://mcp.voicelab.uz` | MCP resource identifier (audience claim in JWTs). **MUST match JWT `aud` claim** |
 | **Legacy Auth** | | |
 | `MCP_AUTH_TOKEN` | _(empty)_ | Static Bearer token for non-OpenAI clients (Cursor, Claude, Grok) |
 | **Server Config** | | |
