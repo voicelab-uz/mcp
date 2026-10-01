@@ -1,6 +1,6 @@
 {
   "name": "voicelab",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Speech AI for agents: TTS, STT with timing, voice isolation, and LLM completions in Uzbek, Russian, and English",
   "author": {
     "name": "Elzodxon Sharofaddinov",
@@ -35,9 +35,7 @@
       "logo": "./assets/logo.png",
       "composerIcon": "./assets/icon.png"
     },
-    "com.openai.onboardingSkill": {
-      "instructions": "Use list_voices before text_to_speech. Poll get_transcription after speech_to_text. Base64-encode audio for uploads. Supports uz, ru, en languages."
-    }
+    "com.openai.onboardingSkill": "./skills/get-started/SKILL.md"
   },
   "review": {
     "test_cases": {
@@ -88,6 +86,6 @@
     }
   },
   "publication": {
-    "release_notes": "Initial release: VoiceLab MCP server with text-to-speech, speech-to-text with timing, voice isolation, and LLM completions for Uzbek, Russian, and English."
+    "release_notes": "v1.0.2: Added onboarding skill documentation with YAML frontmatter. Packaged SKILL.md guides agent usage with TTS, STT, voice isolation, and LLM completion workflows."
   }
 }
