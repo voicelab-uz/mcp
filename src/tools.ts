@@ -253,8 +253,8 @@ const tools: Tool[] = [
     name: 'update_transcription',
     description: 'Update transcription title',
     annotations: {
+      destructiveHint: true,
       readOnlyHint: false,
-      destructiveHint: false,
       openWorldHint: true,
     },
     inputSchema: {

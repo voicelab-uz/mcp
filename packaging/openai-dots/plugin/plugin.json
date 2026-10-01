@@ -3,7 +3,7 @@
   "id": "voicelab-mcp",
   "version": "1.0.0",
   "name": "VoiceLab",
-  "description": "Speech AI for Uzbek, Russian, and English: text-to-speech with natural voices, speech-to-text with timing and speaker labels, voice isolation with noise removal, and LLM completions.",
+  "description": "VoiceLab is an AI voice platform for text-to-speech, speech-to-text, dubbing, meeting notetaking, and voice agents. Turn text into natural speech, transcribe and summarize meetings, localize audio with dubbing, and connect voice tools to ChatGPT and other agents via MCP.",
   "author": {
     "name": "VoiceLab",
     "email": "elzodxon@gmail.com",
@@ -15,8 +15,8 @@
   "extensions": {
     "com.openai.interface": {
       "displayName": "VoiceLab",
-      "shortDescription": "Speech AI for Uzbek/Russian/English",
-      "longDescription": "VoiceLab provides production-grade speech AI capabilities through Model Context Protocol (MCP). Generate natural speech in Uzbek, Russian, and English with professional TTS voices. Transcribe audio with word-level timing and speaker diarization. Remove background noise with voice isolation. Access Aisha LLM for Uzbek language understanding. All tools use base64 for audio I/O and support idempotent operations.",
+      "shortDescription": "Generate, transcribe, dub, and meet — voice AI in one platform",
+      "longDescription": "VoiceLab is an AI voice platform for text-to-speech, speech-to-text, dubbing, meeting notetaking, and voice agents. Turn text into natural speech, transcribe and summarize meetings, localize audio with dubbing, and connect voice tools to ChatGPT and other agents via MCP.",
       "developerName": "VoiceLab",
       "category": "Productivity",
       "capabilities": [
