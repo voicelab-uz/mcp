@@ -1,6 +1,6 @@
 {
   "name": "voicelab",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Speech AI for agents: TTS, STT with timing, voice isolation, and LLM completions in Uzbek, Russian, and English",
   "author": {
     "name": "Elzodxon Sharofaddinov",
@@ -9,10 +9,6 @@
   "homepage": "https://voicelab.uz",
   "repository": "https://github.com/voicelab-uz/mcp",
   "license": "MIT",
-  "mcp": {
-    "url": "https://mcp.voicelab.uz/mcp",
-    "transport": "http"
-  },
   "extensions": {
     "com.openai.interface": {
       "displayName": "VoiceLab",
@@ -37,7 +33,7 @@
         "List available Uzbek voices"
       ],
       "logo": "./assets/logo.png",
-      "composerIcon": "./assets/logo.png"
+      "composerIcon": "./assets/icon.png"
     },
     "com.openai.onboardingSkill": {
       "instructions": "Use list_voices before text_to_speech. Poll get_transcription after speech_to_text. Base64-encode audio for uploads. Supports uz, ru, en languages."
