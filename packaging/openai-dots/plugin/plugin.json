@@ -1,0 +1,97 @@
+{
+  "name": "voicelab",
+  "version": "1.0.0",
+  "description": "Speech AI for agents: TTS, STT with timing, voice isolation, and LLM completions in Uzbek, Russian, and English",
+  "author": {
+    "name": "Elzodxon Sharofaddinov",
+    "email": "elzodxon@gmail.com"
+  },
+  "homepage": "https://voicelab.uz",
+  "repository": "https://github.com/voicelab-uz/mcp",
+  "license": "MIT",
+  "mcp": {
+    "url": "https://mcp.voicelab.uz/mcp",
+    "transport": "http"
+  },
+  "extensions": {
+    "com.openai.interface": {
+      "displayName": "VoiceLab",
+      "shortDescription": "TTS, STT & voice for agents",
+      "longDescription": "Speech AI for agents: text-to-speech (WAV 24kHz), speech-to-text with word timing and speaker labels, voice isolation with noise removal, and LLM completions. Supports Uzbek, Russian, and English languages.",
+      "developerName": "Elzodxon Sharofaddinov",
+      "category": "Productivity",
+      "capabilities": [
+        "text-to-speech",
+        "speech-to-text",
+        "voice-isolation",
+        "transcription",
+        "llm-completions"
+      ],
+      "websiteURL": "https://voicelab.uz",
+      "supportURL": "https://docs.voicelab.uz/mcp/security",
+      "privacyPolicyURL": "https://voicelab.uz/privacy",
+      "termsOfServiceURL": "https://voicelab.uz/terms",
+      "defaultPrompt": [
+        "Generate speech for 'Salom dunyo' in Uzbek",
+        "Transcribe this audio with speaker labels",
+        "List available Uzbek voices"
+      ],
+      "logo": "./assets/logo.png",
+      "composerIcon": "./assets/icon.png"
+    },
+    "com.openai.onboardingSkill": {
+      "instructions": "Use list_voices before text_to_speech. Poll get_transcription after speech_to_text. Base64-encode audio for uploads. Supports uz, ru, en languages."
+    }
+  },
+  "review": {
+    "test_cases": {
+      "positive": [
+        {
+          "description": "Generate Uzbek speech",
+          "prompt": "Generate speech for 'Assalomu alaykum' in Uzbek",
+          "tools_triggered": ["list_voices", "text_to_speech"]
+        },
+        {
+          "description": "Transcribe with speaker labels",
+          "prompt": "Transcribe this audio with speaker labels",
+          "tools_triggered": ["speech_to_text", "get_transcription"]
+        },
+        {
+          "description": "List voices",
+          "prompt": "Show available Uzbek voices",
+          "tools_triggered": ["list_voices"]
+        },
+        {
+          "description": "LLM completion",
+          "prompt": "Use Aisha model to answer: What is Uzbekistan?",
+          "tools_triggered": ["list_models", "create_completion"]
+        },
+        {
+          "description": "Voice isolation",
+          "prompt": "Remove background noise from this recording",
+          "tools_triggered": ["isolate_voice"]
+        }
+      ],
+      "negative": [
+        {
+          "description": "Missing API key",
+          "prompt": "Generate speech without authentication",
+          "expected_error": "Authentication required"
+        },
+        {
+          "description": "Invalid voice ID",
+          "prompt": "Use voice_invalid123",
+          "expected_error": "Voice not found"
+        },
+        {
+          "description": "Unsupported language",
+          "prompt": "Generate speech in Klingon",
+          "expected_error": "Language not supported"
+        }
+      ]
+    }
+  },
+  "publication": {
+    "release_notes": "Initial release: VoiceLab MCP server with text-to-speech, speech-to-text with timing, voice isolation, and LLM completions for Uzbek, Russian, and English."
+  }
+}
