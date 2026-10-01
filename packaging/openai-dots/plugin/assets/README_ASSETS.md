@@ -1,24 +1,29 @@
 # VoiceLab Plugin Assets
 
+## Status
+
+✅ **Real VoiceLab logo downloaded**: `logo.svg` from https://voicelab.uz/logo/logo.svg
+
+⚠️ **PNG conversion required** - see `CONVERT_SVG.md` for instructions
+
 ## Required Assets
 
 This directory must contain:
 
-1. **logo.png** - Square logo (minimum 48x48px, recommended 512x512px)
+1. **logo.png** - Square logo (512x512px)
    - Used in plugin listings and marketplace
-   - Should be the official VoiceLab brand logo
-   - Currently: PLACEHOLDER - Replace with real logo before submission
+   - Currently: Need to convert `logo.svg` to PNG
 
-2. **icon.png** - Square icon (minimum 48x48px, recommended 256x256px)
+2. **icon.png** - Square icon (256x256px)
    - Used in composer/chat interface
-   - Can be simplified version of logo
-   - Currently: PLACEHOLDER - Replace with real icon before submission
+   - Can be same as logo or simplified
+   - Currently: Need to convert `logo.svg` to PNG
 
-## Where to Get Real Assets
+## Source
 
-- Check if logo exists at: https://mcp.voicelab.uz/logo.png
-- Or contact VoiceLab team at: elzodxon@gmail.com
-- Or extract from https://voicelab.uz website
+Official VoiceLab brand asset (SVG format):
+- ✅ Downloaded from: https://voicelab.uz/logo/logo.svg
+- ⚠️ Not hosted at: https://mcp.voicelab.uz/logo.png (returns 404)
 
 ## Creating Placeholder PNGs
 

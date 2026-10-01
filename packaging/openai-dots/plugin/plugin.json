@@ -28,7 +28,7 @@
         "Realtime Support: Create WebSocket tickets for streaming TTS/STT"
       ],
       "websiteURL": "https://voicelab.uz",
-      "supportURL": "https://docs.voicelab.uz",
+      "supportURL": "https://docs.voicelab.uz/mcp/security",
       "privacyPolicyURL": "https://voicelab.uz/privacy",
       "termsOfServiceURL": "https://voicelab.uz/terms",
       "defaultPrompts": [

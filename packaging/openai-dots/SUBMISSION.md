@@ -6,26 +6,35 @@ Complete submission checklist and guide for VoiceLab MCP plugin.
 
 ### Required (Blocking)
 
+- [ ] **MCP Tool Hints Deployed**
+  - All 27 tools in `src/tools.ts` now have MCP hint annotations:
+    - `readOnlyHint: true` for list/get operations (14 tools)
+    - `destructiveHint: true` for delete operations (2 tools)
+    - `openWorldHint: false` for all tools (bounded to VoiceLab API account)
+  - ⚠️ **CRITICAL**: These changes must be deployed to https://mcp.voicelab.uz/mcp BEFORE OpenAI "Scan Tools" step
+  - Test after deploy: `curl -X POST https://mcp.voicelab.uz/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'`
+  - Verify response includes hint fields on all tools
+  - Status: ✅ Code updated in PR, ⚠️ **deployment required**
+
 - [ ] **MCP Server Live**
   - URL: `https://mcp.voicelab.uz/mcp`
   - Test: `curl -X POST https://mcp.voicelab.uz/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'`
   - Status: ✅ Deployed (verify before submission)
 
 - [ ] **Real Logo Assets**
-  - Replace `plugin/assets/PLACEHOLDER_NOTICE.txt` with:
-    - `logo.png` (512x512px square PNG)
-    - `icon.png` (256x256px square PNG)
-  - Sources:
-    - Fetch from https://mcp.voicelab.uz/logo.png (if hosted)
-    - Extract from https://voicelab.uz
-    - Request from elzodxon@gmail.com
-  - Status: ⚠️ **PLACEHOLDER - MUST REPLACE**
+  - ✅ Real VoiceLab SVG logo downloaded: `plugin/assets/logo.svg` from https://voicelab.uz/logo/logo.svg
+  - ⚠️ **PNG conversion required** - see `plugin/assets/CONVERT_SVG.md` for instructions:
+    - `logo.png` (512x512px square PNG) - convert SVG
+    - `icon.png` (256x256px square PNG) - convert SVG
+  - Note: https://mcp.voicelab.uz/logo.png returns 404 (not hosted yet)
+  - Status: ⚠️ **SVG downloaded, PNG conversion pending**
 
 - [ ] **Legal URLs Live**
-  - Privacy: https://voicelab.uz/privacy
-  - Terms: https://voicelab.uz/terms
-  - Support: https://docs.voicelab.uz
-  - Status: ✅ (verify all return 200)
+  - Privacy: https://voicelab.uz/privacy ✅ (returns 200)
+  - Terms: https://voicelab.uz/terms ✅ (returns 200)
+  - Support: https://docs.voicelab.uz/mcp/security ✅ (returns 200)
+  - Note: Dedicated /support page at voicelab.uz/support does not exist yet; using MCP security docs as supportURL
+  - Status: ✅ All URLs verified live
 
 - [ ] **Domain Control**
   - You can host files at `https://mcp.voicelab.uz/.well-known/`
@@ -175,12 +184,15 @@ OpenAI displays plugin details for review:
 **Add in portal (if fields exist):**
 - Test credentials: `vlk_reviewer_key_here` (the restricted key from checklist)
 - Demo video URL: `https://youtube.com/watch?v=...` (if recorded)
-- Additional notes for reviewer:
+  - Additional notes for reviewer:
   ```
   VoiceLab MCP provides speech AI for Uzbek, Russian, and English.
   
-  Test account credentials: Bearer token in Authorization header.
-  API key: vlk_[PROVIDED_IN_FIELD]
+  AUTHENTICATION:
+  - Gateway: Bearer token auth (MCP_AUTH_TOKEN) at https://mcp.voicelab.uz/mcp
+  - The Bearer token in OpenAI ChatGPT is the gateway auth token, NOT a VoiceLab API key
+  - Server-side VOICELAB_API_KEY is configured on the MCP server (not user-facing)
+  - Users do NOT need to obtain or paste vlk_* API keys
   
   Key capabilities to test:
   1. TTS: "Generate Uzbek speech for: Salom"
@@ -189,6 +201,11 @@ OpenAI displays plugin details for review:
   
   All async operations (STT, isolation) require polling get_* tools.
   Audio is base64-encoded for I/O.
+  
+  Tool hints:
+  - readOnlyHint on list/get operations (safe to call repeatedly)
+  - destructiveHint on delete operations (permanent data removal)
+  - openWorldHint: false (all tools bounded to VoiceLab account scope)
   ```
 
 ### Step 6: Submit for Review

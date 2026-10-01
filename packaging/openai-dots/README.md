@@ -61,10 +61,11 @@ OpenAI now uses the **Agent Plugins** standard (https://agent-plugins.org) inste
 ### 1. Prerequisites
 
 - ✅ MCP server deployed: `https://mcp.voicelab.uz/mcp`
-- ⚠️ Real logo assets (replace placeholders in `plugin/assets/`)
+- ⚠️ **MCP tool hints deployment required** (see SUBMISSION.md - critical for OpenAI Scan Tools)
+- ⚠️ PNG logo assets (SVG downloaded, conversion pending in `plugin/assets/`)
 - ✅ Privacy policy: `https://voicelab.uz/privacy`
 - ✅ Terms of service: `https://voicelab.uz/terms`
-- ✅ Support docs: `https://docs.voicelab.uz`
+- ✅ Support docs: `https://docs.voicelab.uz/mcp/security`
 
 ### 2. Build Plugin ZIP
 
@@ -142,20 +143,24 @@ All tool names match the actual MCP tools in `src/tools.ts`.
 
 ## Authentication
 
-VoiceLab MCP uses Bearer token authentication:
-- Environment variable: `MCP_AUTH_TOKEN` or `VOICELAB_MCP_AUTH_TOKEN`
-- Users provide their VoiceLab API key as the Bearer token
-- OpenAI sends: `Authorization: Bearer <user_api_key>`
+VoiceLab MCP uses **gateway Bearer token authentication**:
+- Gateway auth: `MCP_AUTH_TOKEN` environment variable on the MCP server
+- Server-side API key: `VOICELAB_API_KEY` (configured on server, not user-facing)
+- OpenAI sends: `Authorization: Bearer <MCP_AUTH_TOKEN>`
+- **Users do NOT provide vlk_* API keys to ChatGPT** - auth is gateway-level only
 
 ## Known Issues / TODOs
 
-1. ⚠️ **Logo missing** - `https://mcp.voicelab.uz/logo.png` returns 404
-   - Must host logo at this URL or bundle in ZIP
-   - Current `plugin/assets/` contains placeholder notice only
+1. ⚠️ **PNG conversion required**
+   - ✅ Real VoiceLab SVG logo downloaded: `plugin/assets/logo.svg`
+   - ⚠️ Convert to PNG: see `plugin/assets/CONVERT_SVG.md`
+   - Need: `logo.png` (512x512) + `icon.png` (256x256)
+   - Note: https://mcp.voicelab.uz/logo.png returns 404 (not hosted)
 
-2. ⚠️ **Placeholder assets** - Replace `plugin/assets/PLACEHOLDER_NOTICE.txt` with:
-   - `logo.png` (512x512)
-   - `icon.png` (256x256)
+2. ⚠️ **MCP tool hints deployment**
+   - ✅ Code updated in `src/tools.ts` (this PR)
+   - ⚠️ Must deploy to production before OpenAI Scan Tools step
+   - All 27 tools now have readOnlyHint/destructiveHint/openWorldHint annotations
 
 3. **Demo video** - OpenAI may request a demo recording URL
    - Record a 1-2 minute walkthrough showing:
