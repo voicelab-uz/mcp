@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "voicelab": {
+      "url": "https://mcp.voicelab.uz/mcp",
+      "transport": "streamable-http"
+    }
+  }
+}
