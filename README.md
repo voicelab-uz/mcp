@@ -79,14 +79,25 @@ Or if installed globally:
 
 ## Remote Usage (ChatGPT, Grok, Muse)
 
-Once deployed (VPS HTTP + nginx, or Cloudflare Workers), agents can connect to the hosted endpoint:
+Once deployed (VPS HTTP + nginx, or Cloudflare Workers), agents can connect to the hosted endpoint.
 
 ### ChatGPT / OpenAI Plugins
 
-Add MCP endpoint in ChatGPT settings:
-```
-https://mcp.voicelab.uz/mcp
-```
+OpenAI Plugins require **OAuth 2.1** authentication (static API keys are not supported). This server supports Auth0-backed OAuth for OpenAI compatibility.
+
+**Quick Setup:**
+1. Configure Auth0 (see [Auth0 Setup Guide](./docs/AUTH0_SETUP.md))
+2. Set environment variables:
+   ```bash
+   export AUTH0_DOMAIN='your-tenant.auth0.com'
+   export AUTH0_AUDIENCE='https://mcp.voicelab.uz'
+   export VOICELAB_API_KEY='vlk_...'
+   ```
+3. Register plugin in ChatGPT with URL: `https://mcp.voicelab.uz`
+
+ChatGPT will discover OAuth via `/.well-known/oauth-protected-resource` and initiate authorization-code + PKCE flow.
+
+**Full documentation**: [docs/AUTH0_SETUP.md](./docs/AUTH0_SETUP.md)
 
 ### Grok
 
@@ -128,11 +139,28 @@ HTTP mode binds to `127.0.0.1:3100` by default (`HOST` / `PORT`). Put nginx (or 
 |----------|---------|---------|
 | `VOICELAB_API_KEY` | _(required)_ | VoiceLab API key used by tools |
 | `VOICELAB_BASE_URL` | `https://api.voicelab.uz` | API origin (must be HTTPS and allowlisted) |
-| `MCP_AUTH_TOKEN` | _(empty)_ | If set, `/mcp` requires `Authorization: Bearer <token>` |
+| **OAuth 2.1 (OpenAI)** | | |
+| `AUTH0_DOMAIN` | _(empty)_ | Auth0 tenant domain (e.g., `tenant.auth0.com`) — enables OAuth |
+| `AUTH0_AUDIENCE` | _(empty)_ | API audience/resource identifier (e.g., `https://mcp.voicelab.uz`) |
+| `AUTH0_ISSUER` | _(auto)_ | Auth0 issuer URL (defaults to `https://${AUTH0_DOMAIN}`) |
+| **Legacy Auth** | | |
+| `MCP_AUTH_TOKEN` | _(empty)_ | Static Bearer token for non-OpenAI clients (Cursor, Claude, Grok) |
+| **Server Config** | | |
 | `ALLOWED_ORIGINS` | _(empty)_ | Comma-separated browser origins for CORS; empty disables CORS reflection (no `*`) |
 | `MAX_BODY_BYTES` | `10485760` | Max request body size (10 MiB) |
 | `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` | `120` / `60000` | App-level rate limit per client IP |
 | `HOST` / `PORT` | `127.0.0.1` / `3100` | Listen address (keep loopback in production) |
+
+#### Dual Authentication Mode
+
+The server supports **both OAuth 2.1 and legacy Bearer tokens** simultaneously:
+
+- **OAuth (Auth0)**: Required for OpenAI ChatGPT/Codex Plugins. Enable by setting `AUTH0_DOMAIN` + `AUTH0_AUDIENCE`.
+- **Legacy Token**: Works for Cursor, Claude Desktop, Grok, and other MCP clients. Enable by setting `MCP_AUTH_TOKEN`.
+- **Coexistence**: Both can be active — OpenAI clients use OAuth, others use the legacy token.
+- **Disable Auth**: Leave all auth env vars empty (not recommended for public deployments).
+
+See [Auth0 Setup Guide](./docs/AUTH0_SETUP.md) for OAuth configuration.
 
 #### MCP Bearer auth (clients)
 
