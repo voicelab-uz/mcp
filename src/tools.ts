@@ -33,6 +33,7 @@ const tools: Tool[] = [
     description: 'Get authenticated user profile information (OpenAI profile tool)',
     annotations: {
       readOnlyHint: true,
+      destructiveHint: false,
       openWorldHint: false,
     },
     inputSchema: {
@@ -45,7 +46,8 @@ const tools: Tool[] = [
     description: 'List available LLM models with pricing and limits',
     annotations: {
       readOnlyHint: true,
-      openWorldHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -56,7 +58,9 @@ const tools: Tool[] = [
     name: 'chat_completions',
     description: 'Create an LLM chat completion. Returns completion ID and text. Generates unique idempotency key if not provided.',
     annotations: {
-      openWorldHint: false,
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -87,7 +91,8 @@ const tools: Tool[] = [
     description: 'Get LLM request status, token usage, and credit details',
     annotations: {
       readOnlyHint: true,
-      openWorldHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -102,7 +107,8 @@ const tools: Tool[] = [
     description: 'List supported TTS languages and model capabilities',
     annotations: {
       readOnlyHint: true,
-      openWorldHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -114,7 +120,8 @@ const tools: Tool[] = [
     description: 'List available voices, optionally filtered by language',
     annotations: {
       readOnlyHint: true,
-      openWorldHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -127,7 +134,9 @@ const tools: Tool[] = [
     name: 'text_to_speech',
     description: 'Generate speech from text. Returns audio as base64-encoded WAV. Generates unique idempotency key if not provided.',
     annotations: {
-      openWorldHint: false,
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -146,7 +155,8 @@ const tools: Tool[] = [
     description: 'List TTS generation history',
     annotations: {
       readOnlyHint: true,
-      openWorldHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -161,7 +171,8 @@ const tools: Tool[] = [
     description: 'Get TTS generation details with audio URL',
     annotations: {
       readOnlyHint: true,
-      openWorldHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -175,8 +186,9 @@ const tools: Tool[] = [
     name: 'delete_tts_generation',
     description: 'Delete a TTS generation and its audio (destructive)',
     annotations: {
+      readOnlyHint: false,
       destructiveHint: true,
-      openWorldHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -190,7 +202,9 @@ const tools: Tool[] = [
     name: 'speech_to_text',
     description: 'Transcribe audio file. Accepts audio as base64-encoded data. Returns transcription ID for polling. Generates unique idempotency key if not provided.',
     annotations: {
-      openWorldHint: false,
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -208,7 +222,8 @@ const tools: Tool[] = [
     description: 'Get transcription status and results. Poll this after speech_to_text until status is completed.',
     annotations: {
       readOnlyHint: true,
-      openWorldHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -223,7 +238,8 @@ const tools: Tool[] = [
     description: 'List STT transcription history',
     annotations: {
       readOnlyHint: true,
-      openWorldHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -237,7 +253,9 @@ const tools: Tool[] = [
     name: 'update_transcription',
     description: 'Update transcription title',
     annotations: {
-      openWorldHint: false,
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -252,8 +270,9 @@ const tools: Tool[] = [
     name: 'delete_transcription',
     description: 'Delete a transcription and its audio (destructive)',
     annotations: {
+      readOnlyHint: false,
       destructiveHint: true,
-      openWorldHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -268,7 +287,8 @@ const tools: Tool[] = [
     description: 'Export transcription as TXT, JSON, SRT, or VTT. Returns content as base64-encoded data.',
     annotations: {
       readOnlyHint: true,
-      openWorldHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -283,7 +303,9 @@ const tools: Tool[] = [
     name: 'isolate_voice',
     description: 'Remove background noise from audio with optional speech restoration. Returns job ID for polling. Generates unique idempotency key if not provided.',
     annotations: {
-      openWorldHint: false,
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -302,7 +324,8 @@ const tools: Tool[] = [
     description: 'Get voice isolation job status and audio URLs. Poll this after isolate_voice until status is completed.',
     annotations: {
       readOnlyHint: true,
-      openWorldHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -317,7 +340,8 @@ const tools: Tool[] = [
     description: 'List voice isolation history',
     annotations: {
       readOnlyHint: true,
-      openWorldHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -331,7 +355,9 @@ const tools: Tool[] = [
     name: 'create_isolation_export',
     description: 'Create an export of isolated audio in specified format',
     annotations: {
-      openWorldHint: false,
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -347,7 +373,8 @@ const tools: Tool[] = [
     description: 'Get export status and download URL',
     annotations: {
       readOnlyHint: true,
-      openWorldHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -362,7 +389,9 @@ const tools: Tool[] = [
     name: 'hide_isolation',
     description: 'Hide isolation job from history (does not delete audio)',
     annotations: {
-      openWorldHint: false,
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
@@ -376,7 +405,9 @@ const tools: Tool[] = [
     name: 'create_realtime_ticket',
     description: 'Create a short-lived WebSocket ticket for realtime TTS or STT',
     annotations: {
-      openWorldHint: false,
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
     },
     inputSchema: {
       type: 'object',
