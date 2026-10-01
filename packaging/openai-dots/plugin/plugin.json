@@ -37,7 +37,7 @@
         "List available Uzbek voices"
       ],
       "logo": "./assets/logo.png",
-      "composerIcon": "./assets/icon.png"
+      "composerIcon": "./assets/logo.png"
     },
     "com.openai.onboardingSkill": {
       "instructions": "Use list_voices before text_to_speech. Poll get_transcription after speech_to_text. Base64-encode audio for uploads. Supports uz, ru, en languages."
