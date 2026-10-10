@@ -44,6 +44,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Development setup instructions
 - Example prompts for AI agents
 
+## [1.1.0] - 2026-10-10
+
+### Added
+
+- **New Tool**: `edit_transcription_document` — Atomically replace complete transcription documents with revision-based conflict detection (PUT /v1/stt/transcriptions/{id}/editor)
+- **New Tool**: `isolate_voice_batch` — Submit 1-4 audio files for atomic batch noise removal (POST /v1/voice-isolations/batch)
+- **Client Enhancement**: `uploadMultipartBatch` method for proper multi-file uploads with repeated field names
+
+### Changed
+
+- **LLM Tools**: Enhanced `chat_completions` with reasoning controls (`thinking`, `reasoning_effort`)
+- **STT Tools**: Clarified `speech_to_text` returns 202 Accepted for all uploads (including short clips)
+- **Voice Isolator Tools**: Updated `get_isolation` description to clarify dual-status polling (job status AND audio_status)
+- **Realtime Tools**: Updated `create_realtime_ticket` with ~2 minute expiry timing
+- **Tool Descriptions**: Improved accuracy and detail for all tool descriptions to match current API documentation
+
+### Documentation
+
+- Updated README with 25 total tools (was 23)
+- Added API_SYNC_ANALYSIS.md documenting sync process and changes
+- Synchronized all tool schemas with https://docs.voicelab.uz (Oct 2026 update)
+
+### Technical
+
+- Total tools: 23 → 25
+- No breaking changes (backward compatible)
+- All existing tools remain functional
+- MCP annotations preserved for OpenAI Plugins Directory compliance
+
 ## [Unreleased]
 
 ### Planned
