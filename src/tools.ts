@@ -56,7 +56,7 @@ const tools: Tool[] = [
   },
   {
     name: 'chat_completions',
-    description: 'Create an LLM chat completion. Returns completion ID and text. Generates unique idempotency key if not provided.',
+    description: 'Create an LLM chat completion with optional reasoning controls (thinking, reasoning.enabled/effort, or reasoning_effort). Returns completion ID and text. Generates unique idempotency key if not provided. Model support varies.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -68,7 +68,7 @@ const tools: Tool[] = [
         model: { type: 'string', description: 'Model ID from list_models' },
         messages: {
           type: 'array',
-          description: 'Conversation messages',
+          description: 'Conversation messages (1-101)',
           items: {
             type: 'object',
             properties: {
@@ -79,8 +79,10 @@ const tools: Tool[] = [
             required: ['role', 'content'],
           },
         },
-        max_tokens: { type: 'number', description: 'Maximum output tokens (1-4096)' },
-        temperature: { type: 'number', description: 'Sampling temperature (0-2)' },
+        max_tokens: { type: 'number', description: 'Maximum output tokens (1-4096, default 1024)' },
+        temperature: { type: 'number', description: 'Sampling temperature (0-2, model-dependent)' },
+        thinking: { type: 'boolean', description: 'Simple reasoning toggle (do not combine with reasoning or reasoning_effort)' },
+        reasoning_effort: { type: 'string', enum: ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'], description: 'Reasoning effort level (model-dependent)' },
         idempotency_key: { type: 'string', description: 'Optional idempotency key (auto-generated if omitted)' },
       },
       required: ['model', 'messages'],
@@ -200,7 +202,7 @@ const tools: Tool[] = [
   },
   {
     name: 'speech_to_text',
-    description: 'Transcribe audio file. Accepts audio as base64-encoded data. Returns transcription ID for polling. Generates unique idempotency key if not provided.',
+    description: 'Transcribe audio file asynchronously. Accepts audio as base64-encoded data. Returns 202 Accepted with job ID for polling (even for short clips). Poll get_transcription until status is completed. Generates unique idempotency key if not provided.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -267,6 +269,51 @@ const tools: Tool[] = [
     },
   },
   {
+    name: 'edit_transcription_document',
+    description: 'Atomically replace the complete transcription document (segments, speakers, title). Requires current revision from GET response to prevent conflicts. Returns 409 stt_edit_conflict on stale revision.',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        transcription_id: { type: 'string', description: 'Transcription ID' },
+        revision: { type: 'number', description: 'Current revision number from GET response (required for conflict detection)' },
+        title: { type: 'string', description: 'Document title' },
+        segments: {
+          type: 'array',
+          description: 'Ordered transcript segments with timing',
+          items: {
+            type: 'object',
+            properties: {
+              ordinal: { type: 'number', description: 'Segment order (1-indexed)' },
+              start_ms: { type: 'number', description: 'Start time in milliseconds' },
+              end_ms: { type: 'number', description: 'End time in milliseconds' },
+              text: { type: 'string', description: 'Segment text' },
+              speaker: { type: 'string', description: 'Optional speaker ID (e.g., speaker_1)' },
+            },
+            required: ['ordinal', 'start_ms', 'end_ms', 'text'],
+          },
+        },
+        speakers: {
+          type: 'array',
+          description: 'Speaker metadata for diarization',
+          items: {
+            type: 'object',
+            properties: {
+              id: { type: 'string', description: 'Speaker ID (e.g., speaker_1)' },
+              display_name: { type: 'string', description: 'Speaker display name' },
+            },
+            required: ['id', 'display_name'],
+          },
+        },
+      },
+      required: ['transcription_id', 'revision'],
+    },
+  },
+  {
     name: 'delete_transcription',
     description: 'Delete a transcription and its audio (destructive)',
     annotations: {
@@ -320,8 +367,40 @@ const tools: Tool[] = [
     },
   },
   {
+    name: 'isolate_voice_batch',
+    description: 'Submit 1-4 audio files for batch noise removal with atomic validation and credit reservation. Processing options apply to all files. Returns batch ID and individual job IDs. Generates unique idempotency key if not provided.',
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      openWorldHint: true,
+    },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        files: {
+          type: 'array',
+          description: 'Array of 1-4 audio files as base64-encoded data with filenames',
+          items: {
+            type: 'object',
+            properties: {
+              audio_base64: { type: 'string', description: 'Base64-encoded audio file' },
+              filename: { type: 'string', description: 'Original filename (used as job title)' },
+            },
+            required: ['audio_base64', 'filename'],
+          },
+          minItems: 1,
+          maxItems: 4,
+        },
+        speech_restoration: { type: 'boolean', description: 'Enable Sidon speech restoration for all files (default false)' },
+        restoration_model: { type: 'string', description: 'Restoration model (sidon)' },
+        idempotency_key: { type: 'string', description: 'Optional UUID idempotency key (auto-generated if omitted)' },
+      },
+      required: ['files'],
+    },
+  },
+  {
     name: 'get_isolation',
-    description: 'Get voice isolation job status and audio URLs. Poll this after isolate_voice until status is completed.',
+    description: 'Get voice isolation job status, processing stage, and audio URLs. Poll until BOTH status=completed AND audio_status=completed for the default MP3. Job can complete while MP3 preparation is still running. Signed URLs expire after ~10 minutes.',
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -403,7 +482,7 @@ const tools: Tool[] = [
   },
   {
     name: 'create_realtime_ticket',
-    description: 'Create a short-lived WebSocket ticket for realtime TTS or STT',
+    description: 'Create a short-lived WebSocket ticket for realtime TTS or STT. Tickets expire after ~2 minutes. For browser clients only; server clients can use xvl-api-key header directly on WebSocket handshake.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -412,7 +491,7 @@ const tools: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        service: { type: 'string', enum: ['tts', 'stt'], description: 'Service type' },
+        service: { type: 'string', enum: ['tts', 'stt'], description: 'Service type (stt or tts)' },
       },
       required: ['service'],
     },
@@ -674,6 +753,17 @@ export async function handleToolCall(
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     }
 
+    case 'edit_transcription_document': {
+      const document = {
+        revision: toolArgs.revision as number,
+        title: toolArgs.title as string | undefined,
+        segments: toolArgs.segments as any[] | undefined,
+        speakers: toolArgs.speakers as any[] | undefined,
+      };
+      const result = await stt.updateDocument(toolArgs.transcription_id as string, document);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+
     case 'delete_transcription': {
       await stt.deleteTranscription(toolArgs.transcription_id as string);
       return { content: [{ type: 'text', text: 'Transcription deleted successfully' }] };
@@ -703,6 +793,32 @@ export async function handleToolCall(
         audioBlob,
         idempotencyKey,
         toolArgs.title as string | undefined,
+        toolArgs.speech_restoration as boolean | undefined,
+        toolArgs.restoration_model as string | undefined
+      );
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              ...result,
+              idempotency_key: idempotencyKey,
+            }, null, 2),
+          },
+        ],
+      };
+    }
+
+    case 'isolate_voice_batch': {
+      const idempotencyKey = toolArgs.idempotency_key || generateUUID();
+      const filesInput = toolArgs.files as Array<{ audio_base64: string; filename: string }>;
+      const files = filesInput.map(file => ({
+        blob: new Blob([base64Decode(file.audio_base64)]),
+        filename: file.filename,
+      }));
+      const result = await isolator.isolateVoiceBatch(
+        files,
+        idempotencyKey,
         toolArgs.speech_restoration as boolean | undefined,
         toolArgs.restoration_model as string | undefined
       );
