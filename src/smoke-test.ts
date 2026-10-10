@@ -8,14 +8,23 @@ import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import {
   ListToolsRequestSchema,
 } from '@modelcontextprotocol/sdk/types.js';
+import { VERSION } from './version.js';
+import packageJson from '../package.json' with { type: 'json' };
 
 console.log('Smoke test: Verifying VoiceLab MCP server structure...\n');
 
-// Test 1: Create a mock server
+// Test 1: Verify version matches package.json
+if (VERSION !== packageJson.version) {
+  console.error(`❌ Version mismatch: VERSION (${VERSION}) !== package.json (${packageJson.version})`);
+  process.exit(1);
+}
+console.log(`✓ Version matches package.json: ${VERSION}`);
+
+// Test 2: Create a mock server
 const server = new Server(
   {
     name: 'voicelab-mcp-test',
-    version: '1.0.0',
+    version: VERSION,
   },
   {
     capabilities: {
@@ -54,9 +63,9 @@ const expectedTools = [
   'create_realtime_ticket',
 ];
 
-console.log(`✓ Expected ${expectedTools.length} tools defined\n`);
+console.log(`✓ Expected ${expectedTools.length} tools defined (plus get_profile = 25 total)\n`);
 
-// Test 3: Verify modules can be imported
+// Test 4: Verify modules can be imported
 try {
   const { VoiceLabClient } = await import('./client.js');
   console.log('✓ VoiceLabClient imported');

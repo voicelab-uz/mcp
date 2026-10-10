@@ -73,6 +73,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - All existing tools remain functional
 - MCP annotations preserved for OpenAI Plugins Directory compliance
 
+## [1.1.1] - 2026-10-10
+
+### Fixed
+
+- **Version Drift**: Server now reads version from `package.json` as single source of truth
+  - Fixed hard-coded VERSION in `src/index.ts` (was '1.0.0', should be '1.1.0')
+  - Fixed hard-coded version in `src/worker.ts` (was '1.0.0', should be '1.1.0')
+  - Added `src/version.ts` module to centralize version reading
+  - Added test assertion to verify VERSION matches `package.json`
+  - Future version bumps in `package.json` now automatically propagate to all consumers
+
+### Documentation
+
+- Added `VERSION_MANAGEMENT.md` explaining the version management architecture
+
 ## [Unreleased]
 
 ### Planned
