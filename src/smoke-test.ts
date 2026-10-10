@@ -20,7 +20,26 @@ if (VERSION !== packageJson.version) {
 }
 console.log(`✓ Version matches package.json: ${VERSION}`);
 
-// Test 2: Create a mock server
+// Test 2: Verify no hard-coded version strings in src files
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+
+const srcDir = new URL('.', import.meta.url).pathname;
+const srcFiles = readdirSync(srcDir).filter(f => f.endsWith('.ts') && f !== 'smoke-test.ts');
+
+for (const file of srcFiles) {
+  const content = readFileSync(join(srcDir, file), 'utf-8');
+  const hardcodedVersionPattern = /(?:const|let|var)\s+VERSION\s*=\s*['"][^'"]+['"]|version:\s*['"][0-9]+\.[0-9]+\.[0-9]+['"]/g;
+  const matches = content.match(hardcodedVersionPattern);
+  if (matches) {
+    console.error(`❌ Hard-coded version found in ${file}: ${matches.join(', ')}`);
+    console.error('   All version references must use VERSION from ./version.js');
+    process.exit(1);
+  }
+}
+console.log('✓ No hard-coded version strings in src files');
+
+// Test 3: Create a mock server
 const server = new Server(
   {
     name: 'voicelab-mcp-test',
@@ -35,7 +54,7 @@ const server = new Server(
 
 console.log('✓ Server created successfully');
 
-// Test 2: Define tools list
+// Test 4: Define tools list
 const expectedTools = [
   'list_models',
   'chat_completions',
@@ -65,7 +84,7 @@ const expectedTools = [
 
 console.log(`✓ Expected ${expectedTools.length} tools defined (plus get_profile = 25 total)\n`);
 
-// Test 4: Verify modules can be imported
+// Test 5: Verify modules can be imported
 try {
   const { VoiceLabClient } = await import('./client.js');
   console.log('✓ VoiceLabClient imported');

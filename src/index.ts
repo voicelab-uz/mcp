@@ -20,8 +20,8 @@ import {
   getWWWAuthenticateHeader, 
   verifyRequest,
 } from './oauth.js';
+import { VERSION } from './version.js';
 
-const VERSION = '1.0.0';
 const FALLBACK_API_KEY = process.env.VOICELAB_API_KEY;
 const BASE_URL = process.env.VOICELAB_BASE_URL || 'https://api.voicelab.uz';
 const MCP_AUTH_TOKEN = process.env.MCP_AUTH_TOKEN || '';

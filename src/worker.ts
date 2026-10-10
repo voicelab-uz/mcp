@@ -6,6 +6,7 @@ import { VoicesModule } from './voices.js';
 import { VoiceIsolatorModule } from './isolator.js';
 import { RealtimeModule } from './realtime.js';
 import { handleToolCall } from './tools.js';
+import { VERSION } from './version.js';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 
@@ -25,7 +26,7 @@ app.use('/*', cors({
 app.get('/', (c) => {
   return c.json({
     name: 'VoiceLab MCP Server',
-    version: '1.0.0',
+    version: VERSION,
     status: 'healthy',
     endpoints: {
       mcp: '/mcp',
