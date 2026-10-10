@@ -213,12 +213,14 @@ Public discovery (no auth): `GET /health`, `GET /v1`, `GET /.well-known/mcp.json
 - `get_transcription` — Get transcription status and results (poll until complete)
 - `list_transcriptions` — List transcription history
 - `update_transcription` — Update transcription title
+- `edit_transcription_document` — Atomically replace transcript document (segments, speakers, revision-based)
 - `delete_transcription` — Delete transcription (destructive)
 - `export_transcription` — Export as TXT, JSON, SRT, or VTT (returns base64)
 
 #### Voice Isolation
 
 - `isolate_voice` — Remove background noise (returns job ID for polling)
+- `isolate_voice_batch` — Submit 1-4 files for atomic batch processing
 - `get_isolation` — Get job status and audio URLs (poll until complete)
 - `list_isolations` — List isolation history
 - `create_isolation_export` — Request export in specific format

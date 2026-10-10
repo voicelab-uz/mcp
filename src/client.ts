@@ -266,4 +266,62 @@ export class VoiceLabClient {
 
     throw new VoiceLabError('Unexpected response', 'unknown_error', response.status);
   }
+
+  async uploadMultipartBatch<T>(
+    path: string,
+    files: Array<{ blob: Blob; filename: string }>,
+    otherFields: Record<string, string>,
+    options: {
+      headers?: Record<string, string>;
+      query?: Record<string, string>;
+    } = {}
+  ): Promise<T> {
+    const url = buildSafeUrl(this.baseUrl, path);
+    if (options.query) {
+      for (const [key, value] of Object.entries(options.query)) {
+        url.searchParams.set(key, value);
+      }
+    }
+
+    const formData = new FormData();
+    // Append multiple files with the same field name
+    for (const file of files) {
+      formData.append('files', file.blob, file.filename);
+    }
+    // Append other fields
+    for (const [key, value] of Object.entries(otherFields)) {
+      formData.append(key, value);
+    }
+
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.apiKey}`,
+      ...options.headers,
+    };
+
+    const response = await fetch(url.toString(), {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!response.ok) {
+      let errorBody: VoiceLabErrorResponse;
+      try {
+        errorBody = (await response.json()) as VoiceLabErrorResponse;
+      } catch {
+        throw new VoiceLabError(
+          `HTTP ${response.status}: ${response.statusText}`,
+          'unknown_error',
+          response.status
+        );
+      }
+      throw VoiceLabError.fromResponse(response.status, errorBody);
+    }
+
+    if (response.status === 202 || response.status === 201 || response.status === 200) {
+      return response.json() as Promise<T>;
+    }
+
+    throw new VoiceLabError('Unexpected response', 'unknown_error', response.status);
+  }
 }

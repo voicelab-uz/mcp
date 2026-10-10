@@ -70,21 +70,26 @@ export class VoiceIsolatorModule {
   }
 
   async isolateVoiceBatch(
-    files: Blob[],
+    files: Array<{ blob: Blob; filename: string }>,
     idempotencyKey: string,
     speechRestoration: boolean = false,
     restorationModel?: string
   ): Promise<VoiceIsolationBatchResponse> {
-    const fields: Record<string, string | Blob> = {};
-    files.forEach((file, index) => {
-      fields[`files`] = file;
-    });
-    fields.speech_restoration = speechRestoration.toString();
-    if (restorationModel) fields.restoration_model = restorationModel;
+    if (files.length === 0 || files.length > 4) {
+      throw new Error('Batch upload requires 1-4 files');
+    }
+    
+    const otherFields: Record<string, string> = {
+      speech_restoration: speechRestoration.toString(),
+    };
+    if (restorationModel) {
+      otherFields.restoration_model = restorationModel;
+    }
 
-    return this.client.uploadMultipart<VoiceIsolationBatchResponse>(
+    return this.client.uploadMultipartBatch<VoiceIsolationBatchResponse>(
       '/v1/voice-isolations/batch',
-      fields,
+      files,
+      otherFields,
       { headers: { 'Idempotency-Key': idempotencyKey } }
     );
   }
