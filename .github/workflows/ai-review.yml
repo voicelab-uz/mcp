@@ -43,6 +43,6 @@ jobs:
       - name: Review changed code
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          AIAND_API_KEY: ${{ secrets.AIAND_API_KEY }}
+          REVIEWER_AI: ${{ secrets.REVIEWER_AI }}
           PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
         run: node .github/ai-review/review.mjs

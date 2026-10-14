@@ -4,6 +4,7 @@ import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { spawnSync } from 'node:child_process';
 import {
   deduplicate, fileContext, githubClient, makeBatches, modelClient, parsePatch,
   loadGuidance, prepareFiles, requestJSON, reviewBody, runReview, skipReason, validateFindings, VERIFY_SCHEMA,
@@ -64,6 +65,19 @@ test('the deployed configuration loads its local policy and selected skill', asy
   assert.match(guidance, /# VoiceLab review standard/);
   assert.ok(guidance.includes(`name: ${config.profile}\n`));
   assert.equal((guidance.match(/^name:/gm) || []).length, 1);
+});
+
+test('the CLI reads REVIEWER_AI and reports missing configuration without exposing it', () => {
+  const script = new URL('./review.mjs', import.meta.url);
+  const missing = spawnSync(process.execPath, [script.pathname], { env: {}, encoding: 'utf8' });
+  assert.equal(missing.status, 1);
+  assert.match(missing.stderr, /Set the REVIEWER_AI repository Actions secret/);
+  const configured = spawnSync(process.execPath, [script.pathname], {
+    env: { REVIEWER_AI: 'test-reviewer-key' }, encoding: 'utf8',
+  });
+  assert.equal(configured.status, 1);
+  assert.match(configured.stderr, /GITHUB_TOKEN is required/);
+  assert.doesNotMatch(configured.stderr + configured.stdout, /test-reviewer-key/);
 });
 
 test('profile selection cannot traverse paths or silently fall back to another stack', async () => {

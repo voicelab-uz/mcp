@@ -476,8 +476,8 @@ export async function loadGuidance(config, directory = new URL('./', import.meta
 }
 
 async function main() {
-  const key = process.env.AIAND_API_KEY;
-  if (!key) throw new ReviewError('Set the AIAND_API_KEY repository Actions secret to enable AI review.');
+  const key = process.env.REVIEWER_AI;
+  if (!key) throw new ReviewError('Set the REVIEWER_AI repository Actions secret to enable AI review.');
   if (!process.env.GITHUB_TOKEN) throw new ReviewError('GITHUB_TOKEN is required.');
   const number = Number(process.env.PR_NUMBER);
   if (!Number.isSafeInteger(number) || number < 1) throw new ReviewError('PR_NUMBER must be a positive integer.');

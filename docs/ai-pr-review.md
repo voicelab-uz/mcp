@@ -17,8 +17,8 @@ workflow policy before changing it.
 1. Merge `.github/ai-review/` and both workflows into the repository's **default
    branch**. The privileged reviewer always runs that branch's implementation.
 2. In **Settings → Secrets and variables → Actions → New repository secret**, add
-   **`AIAND_API_KEY`** with your AI& token. It needs access to the configured models.
-   An organization Actions secret named `AIAND_API_KEY` with access granted to this
+   **`REVIEWER_AI`** with your AI& token. It needs access to the configured models.
+   An organization Actions secret named `REVIEWER_AI` with access granted to this
    repository also works. Secrets in another repository are not inherited.
    No GitHub PAT or separate bot account is needed.
 3. Open a PR or push a commit to an existing PR. For an existing PR with no new
@@ -184,7 +184,7 @@ After adding the secret, use a small real PR to check the workflow's run summary
 and its inline comments. A complete clean review receives LGTM without inline findings.
 If a run fails, inspect **Actions → AI PR review → Review changed code**:
 
-- Missing key: add `AIAND_API_KEY` to repository Actions secrets.
+- Missing key: add `REVIEWER_AI` to repository Actions secrets.
 - HTTP 401/403: verify token access and GitHub workflow permissions.
 - HTTP 404: verify both configured model IDs are accessible to your AI& account.
 - HTTP 429: check AI& credits/rate limits, then rerun the failed job.
