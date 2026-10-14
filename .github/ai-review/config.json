@@ -1,0 +1,13 @@
+{
+  "profile": "mcp",
+  "reviewer": "zai-org/glm-5.3",
+  "judge": "deepseek-ai/deepseek-v4-pro",
+  "reasoningEffort": "high",
+  "maxCompletionTokens": 16384,
+  "maxComments": 5,
+  "maxFiles": 80,
+  "maxPatchChars": 40000,
+  "maxContextChars": 24000,
+  "maxBatchChars": 100000,
+  "maxBatches": 4
+}
