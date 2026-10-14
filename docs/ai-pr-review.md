@@ -11,7 +11,8 @@ use the repository's normal CI infrastructure.
 - Changing the base branch also triggers a fresh review; title/body edits do not.
 - Drafts receive review, but no automatic fixes. Branches without a PR do not.
 - Existing PRs: comment `@reviewer review`. An unchanged base/head revision already
-  reviewed by the old bot or new app skips inference and duplicate comments.
+  reviewed under the current server policy skips inference and duplicate comments.
+  Enabling formal decisions may require one fresh review of an older revision.
 - Merge conflicts do not stop review of the available diff. The reviewer neither
   resolves conflicts nor merges the PR. Push a conflict resolution to review again.
 
@@ -46,13 +47,47 @@ one profile per repository and never loads instructions or tools from a PR.
 same files and challenges findings. New findings receive verification. Both use
 high reasoning. Comments identify changed lines and label **Must fix**, **Should
 fix**, or **Nice to have**. Questions identify missing evidence or a real decision;
-examples explain the fix when useful. These remain advisory, with no automatic
-approval, merge, or guarantee that every vulnerability will be found.
+examples explain the fix when useful. Confirmed Must fix issues produce a GitHub
+**Request changes** review. Questions and optional suggestions remain comments.
+No reviewer can guarantee that every vulnerability will be found.
 
 **LGTM** appears only after complete review with no remaining actionable concerns.
 Missing context, skipped files, and incomplete output are disclosed. Failures show
 in the **VoiceLab AI reviewer** check and never produce LGTM. The app cannot prove
 runtime performance, UI appearance, or test success from a diff.
+
+## Approval, verification, and explanations
+
+The app **approves** only when the current revision has a complete clean review,
+no unresolved earlier findings, and passing CI. Drafts, merge conflicts, incomplete
+context, skipped files, failed/pending checks, and missing CI hold approval.
+At least one independent GitHub Actions check must pass; the reviewer cannot count
+its own check as CI. Product CI must already exist for the changed code. Many
+VoiceLab repos currently have reviewer tests only, so product PRs may correctly
+remain unapproved until product checks are added.
+
+CI is rechecked every five minutes using cached review metadata, without another
+model call. A changed head/base or failed CI rerun withdraws this app's approval;
+human approvals are untouched. If a human dismisses an app approval, it is not
+automatically restored on the same revision. Merge-commit checks are accepted only when their
+parents match the reviewed base and head. Human merge-time checks remain important
+because GitHub reads and review writes are not atomic.
+
+On the next revision, both models independently verify earlier app findings against
+current changed files. They resolve only the app's own threads when evidence is
+sufficient and both agree. An outdated line or a reply saying “fixed” is not proof.
+Missing context leaves the thread open. Human-resolved threads still receive the
+normal fresh code review.
+
+A separate **What changed** comment is updated, rather than added repeatedly. It
+explains concrete behavior changes, with one short engineering note or example
+when useful. Deletion suggestions require evidence that the changed code is unused
+or replaced; missing references in a partial diff are not enough. The app never
+automatically deletes files or rewrites logic.
+
+**Merging stays manual.** The team reads the changes and uses squash and merge.
+The app never merges, enables auto-merge, or adds PRs to a merge queue. Its approval
+does not count as a human review or enforce repository branch protections.
 
 ## Small automatic fixes
 
@@ -85,11 +120,14 @@ reviews. Restoring the previous pull_request_target trigger is the automatic rol
 Normal CI remains separate and unchanged.
 
 Signed webhooks enter a durable queue; repeated deliveries deduplicate and rapid
-pushes coalesce. Defaults: 150 model calls/day overall, 40/repository, up to four
+pushes coalesce. Defaults: 150 model calls/day overall, 60/repository, up to four
 batches and five comments per review. These are request caps, not a currency limit.
-Source, PR text, and relevant comments go to AI&; known credential paths skip, but
-this is not a secret scanner. Credentials, model reasoning, and response bodies
-are not logged. Untrusted PR text has no shell or GitHub tools.
+Changed source, PR text, and relevant comments go to AI& after best-effort
+redaction of common credentials and personal data. Known credential paths skip.
+Recognizable credential formats are also flagged locally without sending values
+to the models; sensitive output is rejected. These checks do not replace dedicated
+secret scanning and cannot find every secret or PII leak. Credentials, model
+reasoning, and response bodies are not logged. Untrusted PR text has no shell or GitHub tools.
 
 On failure, inspect the reviewer check. For AI& 401/403, verify account/model access;
 429 means provider rate/credit limits; 5xx indicates provider failure. Ambiguous
