@@ -113,6 +113,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Uses the existing REST client, per-user OAuth API key, and SSRF allowlist
 - Developer prefix `/v1/meetings` (docs); not dashboard `/api/v1/meetings`
 
+## [1.3.0] - 2026-10-14
+
+### Added
+
+- **MCP Apps upload view** (spec 2026-01-26): `capabilities.resources`, `resources/list`, `resources/read`, and `resources/templates/list`; `ui://voicelab/upload` served as `text/html;profile=mcp-app` with CSP `connectDomains` = API origin (plus `openai/widgetCSP`, `openai/widgetDomain`, `openai/widgetDescription` aliases). Unknown resources return `-32002`
+- **Upload sessions** (`src/uploads.ts`): `POST /v1/uploads`, `GET /v1/uploads/{id}`
+  - `upload_audio` — creates a session and opens the upload widget; the single-use `upload_token` is returned only in result `_meta["voicelab/upload"]`
+  - `create_upload_session` — app-only (`_meta.ui.visibility: ["app"]`, `openai/visibility: private`)
+  - `get_upload` — session status
+  - Optional `UPLOAD_PAGE_URL` adds a `browser_upload_url` fallback (`#t=…&id=…&p=…`)
+- **ChatGPT file params**: `create_meeting_from_file` and `transcribe_file` (`openai/fileParams: ["file"]`) forward `download_url` as `audio_url`, never echo it, and derive a deterministic UUIDv5 idempotency key from `file_id`
+- **Phase 0 spike** (staging only, `MCP_ENABLE_SPIKE=1` + `SPIKE_ECHO_URL`): `upload_spike`, app-only `upload_spike_done`, `ui://voicelab/spike` diagnostics view. See `docs/MCP_APPS_SPIKE.md`
+
+### Changed
+
+- `create_meeting` and `speech_to_text` accept exactly one of `upload_id`, `audio_url`, or `audio_base64` (no longer requires `audio_base64`; `speech_to_text` still requires `language`). Descriptions document the ~7 MB base64 limit (10 MiB MCP body cap)
+- `MeetingsModule.createMeeting` / `STTModule.transcribeAudio` take an `AudioSource` (`file` | `url` | `upload`); bare `Blob` still accepted
+- `tools/list` merges per-tool `_meta` (e.g. `_meta.ui`) instead of overwriting it
+- Server construction moved to `src/server.ts`
+- `src/worker.ts` marked legacy; returns a clear error for `resources/*`
+
+### Technical
+
+- Total tools: 33 → 38 (39 with `upload_spike`/`upload_spike_done` when the spike is enabled)
+- Voice isolation tools unchanged (`audio_base64` only)
+- No new runtime dependencies
+
 ## [Unreleased]
 
 ### Planned

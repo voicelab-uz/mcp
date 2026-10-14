@@ -5,15 +5,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
-import { VoiceLabClient } from './client.js';
-import { LLMModule } from './llm.js';
-import { TTSModule } from './tts.js';
-import { STTModule } from './stt.js';
-import { VoicesModule } from './voices.js';
-import { VoiceIsolatorModule } from './isolator.js';
-import { RealtimeModule } from './realtime.js';
-import { MeetingsModule } from './meetings.js';
-import { registerTools } from './tools.js';
+import { createMcpServer as buildMcpServer } from './server.js';
+import { loadAppsConfig } from './apps-config.js';
 import { 
   type OAuthConfig, 
   type VerifiedOAuthUser,
@@ -37,6 +30,12 @@ const ALLOWED_ORIGINS = (process.env.ALLOWED_ORIGINS || '')
   .map((s) => s.trim())
   .filter(Boolean);
 
+// MCP Apps / audio ingestion config (UPLOAD_PAGE_URL, MCP_WIDGET_DOMAIN, MCP_ENABLE_SPIKE, SPIKE_ECHO_URL)
+const APPS_CONFIG = loadAppsConfig(process.env, BASE_URL);
+for (const warning of APPS_CONFIG.warnings) {
+  console.error(`Config warning: ${warning}`);
+}
+
 // Per-user API keys from OAuth require fallback key OR OAuth issuer
 if (!FALLBACK_API_KEY && !OAUTH_ISSUER) {
   console.error('Error: Either VOICELAB_API_KEY (fallback) or OAUTH_ISSUER must be set');
@@ -50,30 +49,7 @@ if (!FALLBACK_API_KEY && !OAUTH_ISSUER) {
  * @param verifiedUser - OAuth user info (for profile tool)
  */
 function createMcpServer(apiKey: string, verifiedUser?: VerifiedOAuthUser | 'legacy'): Server {
-  const client = new VoiceLabClient({ apiKey, baseUrl: BASE_URL });
-  const modules = {
-    llm: new LLMModule(client),
-    tts: new TTSModule(client),
-    stt: new STTModule(client),
-    voices: new VoicesModule(client),
-    isolator: new VoiceIsolatorModule(client),
-    realtime: new RealtimeModule(client),
-    meetings: new MeetingsModule(client),
-  };
-
-  const server = new Server(
-    {
-      name: 'voicelab-mcp',
-      version: VERSION,
-    },
-    {
-      capabilities: {
-        tools: {},
-      },
-    }
-  );
-  registerTools(server, modules, verifiedUser);
-  return server;
+  return buildMcpServer({ apiKey, baseUrl: BASE_URL, apps: APPS_CONFIG, verifiedUser });
 }
 
 function getOAuthConfig(): OAuthConfig {
@@ -324,6 +300,11 @@ async function startHttp(): Promise<void> {
     console.error('Auth: disabled (set OAUTH_ISSUER or MCP_AUTH_TOKEN to enable)');
   }
   
+  if (APPS_CONFIG.spike) {
+    console.error(`MCP Apps spike: ENABLED (echo origin ${APPS_CONFIG.spike.echoOrigin}) — staging only`);
+  }
+  console.error(`Browser upload page: ${APPS_CONFIG.uploadPageUrl ? 'configured' : 'not configured (audio_url fallback)'}`);
+
   if (ALLOWED_ORIGINS.length > 0) {
     console.error(`CORS allowlist: ${ALLOWED_ORIGINS.length} origin(s)`);
   } else {

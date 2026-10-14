@@ -11,7 +11,11 @@ import { VoicesModule } from './voices.js';
 import { VoiceIsolatorModule } from './isolator.js';
 import { RealtimeModule } from './realtime.js';
 import { MeetingsModule, meetingTools } from './meetings.js';
-import { generateUUID, base64Encode, base64Decode } from './utils.js';
+import { UploadsModule, UPLOAD_ID_PATTERN, isUploadPurpose, type UploadSessionResponse, type UploadPurpose } from './uploads.js';
+import { type AudioSource } from './audio-source.js';
+import { type AppsConfig, DEFAULT_API_ORIGIN, DEFAULT_WIDGET_DOMAIN } from './apps-config.js';
+import { uploadTools, fileParamTools, spikeTools } from './ingestion-tools.js';
+import { generateUUID, base64Encode, base64Decode, uuidV5 } from './utils.js';
 import { type VerifiedOAuthUser, hasRequiredScope } from './oauth.js';
 
 export interface Modules {
@@ -22,6 +26,251 @@ export interface Modules {
   isolator: VoiceIsolatorModule;
   realtime: RealtimeModule;
   meetings: MeetingsModule;
+  /** Optional so legacy callers (src/worker.ts) keep compiling; upload tools error without it. */
+  uploads?: UploadsModule;
+}
+
+export interface ToolsOptions {
+  apps: AppsConfig;
+}
+
+const DEFAULT_TOOLS_OPTIONS: ToolsOptions = {
+  apps: { apiOrigin: DEFAULT_API_ORIGIN, widgetDomain: DEFAULT_WIDGET_DOMAIN },
+};
+
+/** Thrown for invalid tool arguments; serialized like VoiceLab API errors. */
+export class ToolInputError extends Error {
+  statusCode = 400;
+  constructor(message: string, public code: string = 'validation_error') {
+    super(message);
+    this.name = 'ToolInputError';
+  }
+}
+
+export const MAX_AUDIO_URL_LENGTH = 4096;
+
+/** Validate a public HTTPS audio URL. Error messages never echo the URL. */
+export function validateAudioUrl(raw: unknown, field = 'audio_url'): string {
+  if (typeof raw !== 'string' || !raw.trim()) {
+    throw new ToolInputError(`${field} must be a non-empty string`, 'invalid_audio_source');
+  }
+  const value = raw.trim();
+  if (value.length > MAX_AUDIO_URL_LENGTH) {
+    throw new ToolInputError(`${field} must be at most ${MAX_AUDIO_URL_LENGTH} characters`, 'invalid_audio_source');
+  }
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new ToolInputError(`${field} must be a valid URL`, 'invalid_audio_source');
+  }
+  if (url.protocol !== 'https:') {
+    throw new ToolInputError(`${field} must use https`, 'invalid_audio_source');
+  }
+  if (url.username || url.password) {
+    throw new ToolInputError(`${field} must not contain credentials`, 'invalid_audio_source');
+  }
+  return value;
+}
+
+const AUDIO_SOURCE_KEYS = ['upload_id', 'audio_url', 'audio_base64'] as const;
+
+/**
+ * Resolve exactly one audio source from tool arguments:
+ * upload_id (upl_...), audio_url (https, <= 4096 chars) or audio_base64.
+ */
+export function resolveAudioSource(
+  args: Record<string, unknown>,
+  options: { filename?: string } = {}
+): AudioSource {
+  const provided = AUDIO_SOURCE_KEYS.filter(
+    (key) => args[key] !== undefined && args[key] !== null && args[key] !== ''
+  );
+  if (provided.length !== 1) {
+    throw new ToolInputError(
+      provided.length === 0
+        ? 'Provide one audio source: upload_id, audio_url, or audio_base64'
+        : `Provide exactly one audio source; got ${provided.join(', ')}`,
+      'invalid_audio_source'
+    );
+  }
+  const key = provided[0];
+  const value = args[key];
+  switch (key) {
+    case 'upload_id': {
+      if (typeof value !== 'string' || !UPLOAD_ID_PATTERN.test(value)) {
+        throw new ToolInputError('upload_id must match upl_[A-Za-z0-9]{20,40}', 'invalid_audio_source');
+      }
+      return { kind: 'upload', id: value };
+    }
+    case 'audio_url':
+      return { kind: 'url', url: validateAudioUrl(value) };
+    case 'audio_base64': {
+      if (typeof value !== 'string') {
+        throw new ToolInputError('audio_base64 must be a string', 'invalid_audio_source');
+      }
+      const bytes = base64Decode(value);
+      if (bytes.length === 0) {
+        throw new ToolInputError('audio_base64 decoded to an empty file', 'invalid_audio_source');
+      }
+      return { kind: 'file', blob: new Blob([bytes]), filename: options.filename };
+    }
+  }
+}
+
+/** Namespace for deterministic idempotency keys derived from ChatGPT file ids. */
+export const FILE_IDEMPOTENCY_NAMESPACE = '6f1c2a8e-4b7d-5e3f-9a10-7c2d4e5f6a7b';
+
+export interface OpenAIFileParam {
+  download_url: string;
+  file_id: string;
+  mime_type?: string;
+  file_name?: string;
+}
+
+export function parseOpenAIFile(raw: unknown): OpenAIFileParam {
+  if (!raw || typeof raw !== 'object') {
+    throw new ToolInputError('file must be an object with download_url and file_id');
+  }
+  const file = raw as Record<string, unknown>;
+  const downloadUrl = validateAudioUrl(file.download_url, 'file.download_url');
+  if (typeof file.file_id !== 'string' || !file.file_id.trim() || file.file_id.length > 512) {
+    throw new ToolInputError('file.file_id must be a non-empty string');
+  }
+  return {
+    download_url: downloadUrl,
+    file_id: file.file_id.trim(),
+    mime_type: typeof file.mime_type === 'string' ? file.mime_type : undefined,
+    file_name: typeof file.file_name === 'string' ? file.file_name : undefined,
+  };
+}
+
+/** Default meeting title from a filename: strip extension/control chars, single line, <= 160 chars. */
+export function titleFromFilename(name: string | undefined): string | undefined {
+  if (!name) return undefined;
+  const stem = name.replace(/\.[A-Za-z0-9]{1,8}$/, '');
+  const clean = stem.replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 160).trim();
+  return clean || undefined;
+}
+
+/** Deep-replace any string that contains a secret (e.g. a signed download URL). */
+export function redactSecrets<T>(value: T, secrets: string[]): T {
+  const needles = secrets.filter((s) => s.length >= 8);
+  const walk = (v: unknown): unknown => {
+    if (typeof v === 'string') {
+      return needles.some((n) => v.includes(n)) ? '[redacted]' : v;
+    }
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === 'object') {
+      return Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([k, x]) => [k, walk(x)]));
+    }
+    return v;
+  };
+  return walk(value) as T;
+}
+
+function urlSecrets(url: string): string[] {
+  try {
+    const parsed = new URL(url);
+    return [url, `${parsed.origin}${parsed.pathname}`, parsed.search.slice(1)].filter(Boolean);
+  } catch {
+    return [url];
+  }
+}
+
+export function buildBrowserUploadUrl(
+  pageUrl: string,
+  token: string,
+  uploadId: string,
+  purpose: UploadPurpose
+): string {
+  const fragment = new URLSearchParams({ t: token, id: uploadId, p: purpose }).toString();
+  return `${pageUrl}#${fragment}`;
+}
+
+function uploadSessionResult(
+  session: UploadSessionResponse,
+  purpose: UploadPurpose,
+  apps: AppsConfig,
+  mode: 'model' | 'app'
+) {
+  const upload = session?.upload;
+  if (!upload?.id || !session.upload_url || !session.upload_token) {
+    throw new Error('VoiceLab returned an incomplete upload session');
+  }
+  const browserUploadUrl = apps.uploadPageUrl
+    ? buildBrowserUploadUrl(apps.uploadPageUrl, session.upload_token, upload.id, purpose)
+    : undefined;
+  const structuredContent: Record<string, unknown> = {
+    upload_id: upload.id,
+    purpose,
+    status: upload.status,
+    expires_at: upload.expires_at,
+    ...(browserUploadUrl ? { browser_upload_url: browserUploadUrl } : {}),
+  };
+  const followUp = purpose === 'meeting' ? 'create_meeting' : 'speech_to_text';
+  let text: string;
+  if (mode === 'app') {
+    text = `Upload session ${upload.id} created (expires ${upload.expires_at ?? 'soon'}).`;
+  } else {
+    text =
+      `Upload session ${upload.id} is ready for a ${purpose === 'meeting' ? 'meeting recording' : 'transcription'} ` +
+      `(expires ${upload.expires_at ?? 'in about 15 minutes'}). If the VoiceLab upload widget is shown, ` +
+      `the user can pick or drop the audio file there; it uploads directly to VoiceLab and starts processing automatically, ` +
+      `then the widget reports the resulting id.`;
+    if (browserUploadUrl) {
+      text +=
+        ` If no widget is shown, give the user this link to upload in their browser: ${browserUploadUrl} — ` +
+        `after they confirm, call get_upload with upload_id ${upload.id} and, once status is ready, ${followUp} with upload_id.`;
+    } else {
+      text +=
+        ` If no widget is shown, this client cannot upload local files directly: ask the user for a public HTTPS link ` +
+        `to the recording and call ${followUp} with audio_url (or audio_base64 for files under ~7 MB).`;
+    }
+  }
+  return {
+    content: [{ type: 'text', text }],
+    structuredContent,
+    _meta: {
+      'voicelab/upload': {
+        upload_url: session.upload_url,
+        upload_token: session.upload_token,
+        max_bytes: upload.max_bytes,
+        expires_at: upload.expires_at,
+      },
+    },
+  };
+}
+
+function requireUploads(modules: Modules): UploadsModule {
+  if (!modules.uploads) {
+    throw new ToolInputError('Upload sessions are not available on this server', 'not_supported');
+  }
+  return modules.uploads;
+}
+
+function requirePurpose(value: unknown): UploadPurpose {
+  if (!isUploadPurpose(value)) {
+    throw new ToolInputError('purpose must be "meeting" or "stt"');
+  }
+  return value;
+}
+
+function requireLanguage(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new ToolInputError('language is required (e.g. uz, en, ru)');
+  }
+  return value.trim();
+}
+
+/** Full tool list for the given configuration (spike tools only when enabled). */
+export function listTools(options: ToolsOptions = DEFAULT_TOOLS_OPTIONS): Tool[] {
+  return [
+    ...tools,
+    ...uploadTools,
+    ...fileParamTools,
+    ...(options.apps.spike ? spikeTools : []),
+  ];
 }
 
 const oauthSecurityScheme = {
@@ -204,7 +453,7 @@ const tools: Tool[] = [
   },
   {
     name: 'speech_to_text',
-    description: 'Transcribe audio file asynchronously. Accepts audio as base64-encoded data. Returns 202 Accepted with job ID for polling (even for short clips). Poll get_transcription until status is completed. Generates unique idempotency key if not provided.',
+    description: 'Transcribe audio asynchronously. Provide exactly one audio source: upload_id (preferred for large local files: a ready upload from upload_audio), audio_url (public HTTPS URL the API downloads), or audio_base64 (small files only: the MCP request body is capped at 10 MiB, so base64 audio must be under ~7 MB). Returns 202 Accepted with job ID for polling (even for short clips). Poll get_transcription until status is completed. Generates unique idempotency key if not provided.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -213,12 +462,18 @@ const tools: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        audio_base64: { type: 'string', description: 'Base64-encoded audio file (MP3, WAV, M4A, OGG, WebM, FLAC)' },
+        upload_id: { type: 'string', description: 'ID of a ready upload (upl_...) from upload_audio with purpose stt. Single-use. Mutually exclusive with audio_url and audio_base64.' },
+        audio_url: { type: 'string', description: 'Public HTTPS URL of the audio (max 4096 chars). Mutually exclusive with upload_id and audio_base64.' },
+        audio_base64: { type: 'string', description: 'Base64-encoded audio file (MP3, WAV, M4A, OGG, WebM, FLAC). Keep under ~7 MB (10 MiB MCP request cap). Mutually exclusive with upload_id and audio_url.' },
         language: { type: 'string', description: 'Language code (uz, en, ru)' },
         include_speakers: { type: 'boolean', description: 'Enable speaker diarization (default false)' },
         idempotency_key: { type: 'string', description: 'Optional UUID idempotency key (auto-generated if omitted)' },
       },
-      required: ['audio_base64', 'language'],
+      required: ['language'],
+    },
+    _meta: {
+      ui: { visibility: ['model', 'app'] },
+      'openai/widgetAccessible': true,
     },
   },
   {
@@ -504,30 +759,12 @@ const tools: Tool[] = [
 export function registerTools(
   server: Server,
   modules: Modules,
-  verifiedUser?: VerifiedOAuthUser | 'legacy'
+  verifiedUser?: VerifiedOAuthUser | 'legacy',
+  options: ToolsOptions = DEFAULT_TOOLS_OPTIONS
 ) {
-  server.setRequestHandler(ListToolsRequestSchema, async () => {
-    // Add OAuth security schemes to tools that need authentication
-    const toolsWithAuth = tools.map((tool) => {
-      // get_profile is the OpenAI profile tool (special marker)
-      if (tool.name === 'get_profile') {
-        return {
-          ...tool,
-          // Mark as OpenAI profile tool
-          _meta: {
-            'openai/profile': true,
-          },
-        };
-      }
-      // All other tools require OAuth authentication
-      return {
-        ...tool,
-        securitySchemes: [oauthSecurityScheme],
-      };
-    });
-
-    return { tools: toolsWithAuth };
-  });
+  server.setRequestHandler(ListToolsRequestSchema, async () => ({
+    tools: withSecuritySchemes(listTools(options)),
+  }));
 
   server.setRequestHandler(CallToolRequestSchema, async (request) => {
     try {
@@ -535,7 +772,8 @@ export function registerTools(
         request.params.name,
         request.params.arguments,
         modules,
-        verifiedUser
+        verifiedUser,
+        options
       );
     } catch (error: any) {
       return {
@@ -559,11 +797,25 @@ export function registerTools(
   });
 }
 
+/**
+ * Add OAuth security schemes, merging (never replacing) each tool's own _meta.
+ */
+export function withSecuritySchemes(toolList: Tool[]): Tool[] {
+  return toolList.map((tool) => {
+    if (tool.name === 'get_profile') {
+      // OpenAI profile tool marker
+      return { ...tool, _meta: { ...(tool._meta ?? {}), 'openai/profile': true } };
+    }
+    return { ...tool, securitySchemes: [oauthSecurityScheme] };
+  });
+}
+
 export async function handleToolCall(
   name: string,
   args: unknown,
   modules: Modules,
-  verifiedUser?: VerifiedOAuthUser | 'legacy'
+  verifiedUser?: VerifiedOAuthUser | 'legacy',
+  options: ToolsOptions = DEFAULT_TOOLS_OPTIONS
 ) {
   const toolArgs = (args || {}) as Record<string, any>;
   const { llm, tts, stt, voices, isolator, realtime, meetings } = modules;
@@ -719,12 +971,12 @@ export async function handleToolCall(
     }
 
     case 'speech_to_text': {
+      const language = requireLanguage(toolArgs.language);
+      const source = resolveAudioSource(toolArgs);
       const idempotencyKey = toolArgs.idempotency_key || generateUUID();
-      const audioBuffer = base64Decode(toolArgs.audio_base64 as string);
-      const audioBlob = new Blob([audioBuffer]);
       const result = await stt.transcribeAudio(
-        audioBlob,
-        toolArgs.language as string,
+        source,
+        language,
         idempotencyKey,
         toolArgs.include_speakers as boolean | undefined
       );
@@ -874,14 +1126,13 @@ export async function handleToolCall(
     }
 
     case 'create_meeting': {
-      const idempotencyKey = toolArgs.idempotency_key || generateUUID();
-      const audioBuffer = base64Decode(toolArgs.audio_base64 as string);
       const filename = (toolArgs.filename as string | undefined) || 'meeting.audio';
-      const audio = new File([audioBuffer], filename);
-      const result = await meetings.createMeeting(audio, idempotencyKey, {
+      const source = resolveAudioSource(toolArgs, { filename });
+      const idempotencyKey = toolArgs.idempotency_key || generateUUID();
+      const result = await meetings.createMeeting(source, idempotencyKey, {
         title: toolArgs.title as string | undefined,
         language: toolArgs.language as string | undefined,
-        filename,
+        filename: source.kind === 'file' ? filename : undefined,
       });
       return {
         content: [
@@ -893,6 +1144,96 @@ export async function handleToolCall(
             }, null, 2),
           },
         ],
+      };
+    }
+
+    case 'create_meeting_from_file': {
+      const file = parseOpenAIFile(toolArgs.file);
+      const idempotencyKey =
+        toolArgs.idempotency_key || (await uuidV5(`create_meeting_from_file:${file.file_id}`, FILE_IDEMPOTENCY_NAMESPACE));
+      const title = (toolArgs.title as string | undefined) || titleFromFilename(file.file_name);
+      const result = await meetings.createMeeting({ kind: 'url', url: file.download_url }, idempotencyKey, {
+        title,
+        language: toolArgs.language as string | undefined,
+      });
+      const body = redactSecrets(
+        { ...result, idempotency_key: idempotencyKey, source: { file_id: file.file_id, file_name: file.file_name } },
+        urlSecrets(file.download_url)
+      );
+      return { content: [{ type: 'text', text: JSON.stringify(body, null, 2) }] };
+    }
+
+    case 'transcribe_file': {
+      const file = parseOpenAIFile(toolArgs.file);
+      const language = requireLanguage(toolArgs.language);
+      const idempotencyKey =
+        toolArgs.idempotency_key || (await uuidV5(`transcribe_file:${file.file_id}`, FILE_IDEMPOTENCY_NAMESPACE));
+      const result = await stt.transcribeAudio(
+        { kind: 'url', url: file.download_url },
+        language,
+        idempotencyKey,
+        toolArgs.include_speakers as boolean | undefined
+      );
+      const body = redactSecrets(
+        { ...result, idempotency_key: idempotencyKey, source: { file_id: file.file_id, file_name: file.file_name } },
+        urlSecrets(file.download_url)
+      );
+      return { content: [{ type: 'text', text: JSON.stringify(body, null, 2) }] };
+    }
+
+    case 'upload_audio': {
+      const purpose = requirePurpose(toolArgs.purpose);
+      const session = await requireUploads(modules).createSession(purpose);
+      return uploadSessionResult(session, purpose, options.apps, 'model');
+    }
+
+    case 'create_upload_session': {
+      const purpose = requirePurpose(toolArgs.purpose);
+      const filename = typeof toolArgs.filename === 'string' ? toolArgs.filename.slice(0, 255) : undefined;
+      const contentType = typeof toolArgs.content_type === 'string' ? toolArgs.content_type.slice(0, 255) : undefined;
+      const size = typeof toolArgs.size_bytes === 'number' ? toolArgs.size_bytes : undefined;
+      const session = await requireUploads(modules).createSession(purpose, {
+        filename,
+        content_type: contentType,
+        size_bytes: size,
+      });
+      return uploadSessionResult(session, purpose, options.apps, 'app');
+    }
+
+    case 'get_upload': {
+      const uploadId = toolArgs.upload_id;
+      if (typeof uploadId !== 'string' || !UPLOAD_ID_PATTERN.test(uploadId)) {
+        throw new ToolInputError('upload_id must match upl_[A-Za-z0-9]{20,40}');
+      }
+      const result = await requireUploads(modules).get(uploadId);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        structuredContent: { upload: result.upload },
+      };
+    }
+
+    case 'upload_spike': {
+      if (!options.apps.spike) return unknownTool(name);
+      const nonce = generateUUID();
+      return {
+        content: [
+          {
+            type: 'text',
+            text: 'Opened the VoiceLab MCP Apps spike view. If no view is shown, this client does not render MCP Apps for this server.',
+          },
+        ],
+        structuredContent: { spike: true, echo_origin: options.apps.spike.echoOrigin, note: toolArgs.note ?? null },
+        _meta: { 'voicelab/spike': { nonce, issued_at: new Date().toISOString() } },
+      };
+    }
+
+    case 'upload_spike_done': {
+      if (!options.apps.spike) return unknownTool(name);
+      const report = toolArgs.report && typeof toolArgs.report === 'object' ? toolArgs.report : {};
+      const text = JSON.stringify(report, null, 2).slice(0, 4000);
+      return {
+        content: [{ type: 'text', text: `Spike report received:\n${text}` }],
+        structuredContent: { received: true },
       };
     }
 
@@ -934,9 +1275,13 @@ export async function handleToolCall(
     }
 
     default:
-      return {
-        content: [{ type: 'text', text: `Unknown tool: ${name}` }],
-        isError: true,
-      };
+      return unknownTool(name);
   }
+}
+
+function unknownTool(name: string) {
+  return {
+    content: [{ type: 'text', text: `Unknown tool: ${name}` }],
+    isError: true,
+  };
 }

@@ -1,3 +1,11 @@
+/**
+ * LEGACY Cloudflare Worker entry point.
+ *
+ * This is a minimal hand-written JSON-RPC handler kept for backwards compatibility.
+ * It is NOT the production server (that is src/index.ts behind nginx) and it does
+ * not support MCP Apps: no ui:// resources, no tool _meta, no upload sessions.
+ * Do not build new features on it.
+ */
 import { VoiceLabClient } from './client.js';
 import { LLMModule } from './llm.js';
 import { TTSModule } from './tts.js';
@@ -104,6 +112,17 @@ app.post('/mcp', async (c) => {
       return c.json({
         jsonrpc: '2.0',
         result: { tools },
+        id,
+      });
+    }
+
+    if (typeof method === 'string' && method.startsWith('resources/')) {
+      return c.json({
+        jsonrpc: '2.0',
+        error: {
+          code: -32601,
+          message: 'Resources (MCP Apps) are not supported by the legacy worker; use the Node server (src/index.ts)',
+        },
         id,
       });
     }

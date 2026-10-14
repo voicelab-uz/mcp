@@ -84,6 +84,37 @@ describe('MeetingsModule paths and payloads', () => {
     assert.deepStrictEqual(Object.keys(fields), ['audio']);
   });
 
+  it('sends audio_url as the only source field for url sources', async () => {
+    const { meetings, client } = moduleWithFake();
+    await meetings.createMeeting({ kind: 'url', url: 'https://cdn.example.com/a.mp3' }, 'key-1', {
+      title: 'From URL',
+    });
+    const fields = client.calls[0].fields || {};
+    assert.deepStrictEqual(Object.keys(fields).sort(), ['audio_url', 'title']);
+    assert.strictEqual(fields.audio_url, 'https://cdn.example.com/a.mp3');
+  });
+
+  it('sends upload_id as the only source field for upload sources', async () => {
+    const { meetings, client } = moduleWithFake();
+    await meetings.createMeeting({ kind: 'upload', id: 'upl_abcdefghijklmnopqrstu' }, 'key-1', {
+      filename: 'ignored.mp3',
+    });
+    const fields = client.calls[0].fields || {};
+    assert.deepStrictEqual(Object.keys(fields), ['upload_id']);
+    assert.strictEqual(fields.upload_id, 'upl_abcdefghijklmnopqrstu');
+  });
+
+  it('accepts a file AudioSource with filename', async () => {
+    const { meetings, client } = moduleWithFake();
+    await meetings.createMeeting(
+      { kind: 'file', blob: new Blob([new Uint8Array([1])]), filename: 'x.wav' },
+      'key-1'
+    );
+    const fields = client.calls[0].fields || {};
+    assert.deepStrictEqual(Object.keys(fields), ['audio']);
+    assert.strictEqual((fields.audio as File).name, 'x.wav');
+  });
+
   it('lists meetings with default limit 20', async () => {
     const { meetings, client } = moduleWithFake();
     client.nextResponse = { meetings: [], next_cursor: null };
@@ -215,8 +246,15 @@ describe('meetingTools annotations', () => {
     assert.strictEqual(byName.delete_meeting.annotations?.openWorldHint, true);
   });
 
-  it('requires audio_base64 on create and meeting_id on resource tools', () => {
-    assert.deepStrictEqual(byName.create_meeting.inputSchema.required, ['audio_base64']);
+  it('accepts three exclusive audio sources on create (none required) and meeting_id on resource tools', () => {
+    assert.strictEqual(byName.create_meeting.inputSchema.required, undefined);
+    const props = Object.keys(byName.create_meeting.inputSchema.properties || {});
+    for (const key of ['upload_id', 'audio_url', 'audio_base64', 'title', 'language', 'filename', 'idempotency_key']) {
+      assert.ok(props.includes(key), key);
+    }
+    assert.ok(!('oneOf' in byName.create_meeting.inputSchema));
+    assert.deepStrictEqual((byName.create_meeting._meta as any)?.ui?.visibility, ['model', 'app']);
+    assert.match(byName.create_meeting.description || '', /7 MB/);
     assert.deepStrictEqual(byName.get_meeting.inputSchema.required, ['meeting_id']);
     assert.deepStrictEqual(byName.rename_meeting.inputSchema.required, ['meeting_id', 'title']);
     assert.deepStrictEqual(byName.delete_meeting.inputSchema.required, ['meeting_id']);

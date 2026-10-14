@@ -153,6 +153,10 @@ HTTP mode binds to `127.0.0.1:3100` by default (`HOST` / `PORT`). Put nginx (or 
 | `MAX_BODY_BYTES` | `10485760` | Max request body size (10 MiB) |
 | `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW_MS` | `120` / `60000` | App-level rate limit per client IP |
 | `HOST` / `PORT` | `127.0.0.1` / `3100` | Listen address (keep loopback in production) |
+| **MCP Apps / audio upload** | | |
+| `UPLOAD_PAGE_URL` | _(empty)_ | Optional HTTPS browser upload page. When set, `upload_audio` returns `${UPLOAD_PAGE_URL}#t=<token>&id=<upload_id>&p=<purpose>` as a no-widget fallback; otherwise it suggests `audio_url` |
+| `MCP_WIDGET_DOMAIN` | `https://mcp.voicelab.uz` | ChatGPT `openai/widgetDomain` for ui:// resources |
+| `MCP_ENABLE_SPIKE` / `SPIKE_ECHO_URL` | _(off)_ | Staging only: `1` + an HTTPS echo URL exposes the Phase 0 spike tool/resource. See [docs/MCP_APPS_SPIKE.md](./docs/MCP_APPS_SPIKE.md) |
 
 #### Dual Authentication Mode
 
@@ -210,7 +214,7 @@ Public discovery (no auth): `GET /health`, `GET /v1`, `GET /.well-known/mcp.json
 
 #### Speech-to-Text
 
-- `speech_to_text` — Transcribe audio (accepts base64, returns job ID)
+- `speech_to_text` — Transcribe audio from exactly one of `upload_id`, `audio_url`, or `audio_base64` (≤ ~7 MB); returns job ID
 - `get_transcription` — Get transcription status and results (poll until complete)
 - `list_transcriptions` — List transcription history
 - `update_transcription` — Update transcription title
@@ -235,13 +239,23 @@ Public discovery (no auth): `GET /health`, `GET /v1`, `GET /.well-known/mcp.json
 #### Meeting AI
 
 - `list_meeting_capabilities` — List supported recording languages and feature flags
-- `create_meeting` — Upload a recording (returns 202; poll `get_meeting`)
+- `create_meeting` — Submit a recording from exactly one of `upload_id`, `audio_url`, or `audio_base64` (≤ ~7 MB); returns 202, poll `get_meeting`
 - `list_meetings` — List meetings or refresh selected IDs
 - `get_meeting` — Poll status and read transcript, summary, decisions, and action items
 - `rename_meeting` — Change a meeting title
 - `delete_meeting` — Delete a meeting and its results (destructive)
 - `regenerate_meeting_notes` — Retry notes after a notes failure (`transcribed` only)
 - `get_meeting_translations` — Attempt translations (docs: not available with API keys)
+
+#### Audio upload (MCP Apps) and ChatGPT files
+
+- `upload_audio` — Open the VoiceLab upload widget (`ui://voicelab/upload`) so the user can send a local file (up to 500 MB) directly to VoiceLab; processing starts automatically. Text fallback for clients without MCP Apps
+- `create_upload_session` — App-only (`_meta.ui.visibility: ["app"]`): fresh single-use upload session for the widget
+- `get_upload` — Upload session status (`pending` / `ready` / `consumed` / `failed` / `expired`)
+- `create_meeting_from_file` — ChatGPT only (`openai/fileParams`): create a meeting from a file attached in ChatGPT
+- `transcribe_file` — ChatGPT only (`openai/fileParams`): transcribe a file attached in ChatGPT
+
+The server advertises `capabilities.resources` and serves `ui://voicelab/upload` as `text/html;profile=mcp-app` (MCP Apps spec 2026-01-26). Hosts without MCP Apps ignore the UI metadata. The legacy Cloudflare Worker (`src/worker.ts`) does not support MCP Apps.
 
 ### Example Agent Prompts
 
@@ -278,7 +292,7 @@ STT, TTS, Voice Isolator, and Meeting AI upload tools auto-generate UUIDs for id
 
 ### Binary Audio Handling
 
-- **Input**: Audio passed as `audio_base64` (base64-encoded file bytes)
+- **Input** (`create_meeting`, `speech_to_text`): exactly one of `upload_id` (from `upload_audio`), `audio_url` (public HTTPS URL, ≤ 4096 chars), or `audio_base64`. The MCP request body is capped at 10 MiB, so base64 audio must stay under ~7 MB. Voice isolation tools accept `audio_base64` only
 - **Output**: Audio returned as `audio_base64` (WAV/export format) or via signed URLs in job responses
 
 ### Polling

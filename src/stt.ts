@@ -1,4 +1,5 @@
 import { VoiceLabClient } from './client.js';
+import { type AudioSource, audioSourceFields, toAudioSource } from './audio-source.js';
 
 export interface Word {
   ordinal: number;
@@ -69,14 +70,18 @@ export interface EditorDocument {
 export class STTModule {
   constructor(private client: VoiceLabClient) {}
 
+  /**
+   * POST /v1/stt — exactly one multipart source: `audio`, `audio_url`, or `upload_id`.
+   * A bare Blob is accepted for backwards compatibility (treated as a file).
+   */
   async transcribeAudio(
-    audio: Blob,
+    audio: AudioSource | Blob,
     language: string,
     idempotencyKey: string,
     includeSpeakers: boolean = false
   ): Promise<Transcription> {
     return this.client.uploadMultipart<Transcription>('/v1/stt', {
-      audio,
+      ...audioSourceFields(toAudioSource(audio)),
       language,
       include_speakers: includeSpeakers.toString(),
     }, {

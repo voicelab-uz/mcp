@@ -88,9 +88,14 @@ const expectedTools = [
   'delete_meeting',
   'regenerate_meeting_notes',
   'get_meeting_translations',
+  'upload_audio',
+  'create_upload_session',
+  'get_upload',
+  'create_meeting_from_file',
+  'transcribe_file',
 ];
 
-console.log(`✓ Expected ${expectedTools.length} tools defined (plus get_profile = 33 total)\n`);
+console.log(`✓ Expected ${expectedTools.length} tools defined (plus get_profile = ${expectedTools.length + 1} total; spike tools only with MCP_ENABLE_SPIKE=1)\n`);
 
 // Test 5: Verify modules can be imported
 try {
@@ -120,7 +125,7 @@ try {
 
   const meetingToolNames = meetingTools.map((tool) => tool.name);
   const missingMeetingTools = expectedTools.filter(
-    (name) => name.startsWith('list_meeting') || name.includes('meeting')
+    (name) => (name.startsWith('list_meeting') || name.includes('meeting')) && name !== 'create_meeting_from_file'
   ).filter((name) => !meetingToolNames.includes(name));
   if (missingMeetingTools.length > 0) {
     console.error(`❌ Missing Meeting AI tools: ${missingMeetingTools.join(', ')}`);
@@ -132,6 +137,42 @@ try {
     process.exit(1);
   }
   console.log(`✓ Meeting AI tools registered (${meetingTools.length})`);
+
+  // MCP Apps: capabilities.resources, tool list, and ui:// resource
+  const { SERVER_CAPABILITIES } = await import('./server.js');
+  if (!('resources' in SERVER_CAPABILITIES) || !('tools' in SERVER_CAPABILITIES)) {
+    console.error('❌ Server capabilities must include tools and resources');
+    process.exit(1);
+  }
+  console.log('✓ Server capabilities include tools and resources');
+
+  const { listTools } = await import('./tools.js');
+  const { loadAppsConfig } = await import('./apps-config.js');
+  const defaultConfig = loadAppsConfig({});
+  const listed = listTools({ apps: defaultConfig }).map((tool) => tool.name);
+  const missing = expectedTools.filter((name) => !listed.includes(name));
+  if (missing.length > 0 || !listed.includes('get_profile')) {
+    console.error(`❌ Missing tools: ${missing.join(', ')}`);
+    process.exit(1);
+  }
+  if (listed.includes('upload_spike') || listed.includes('upload_spike_done')) {
+    console.error('❌ Spike tools must not be listed without MCP_ENABLE_SPIKE=1');
+    process.exit(1);
+  }
+  console.log(`✓ All ${listed.length} tools listed; spike tools hidden by default`);
+
+  const { listResourcesResult, readResourceResult, UPLOAD_RESOURCE_URI, MCP_APP_MIME_TYPE } = await import('./resources.js');
+  const resourceUris = listResourcesResult(defaultConfig).resources.map((r) => r.uri);
+  const uploadView = readResourceResult(defaultConfig, UPLOAD_RESOURCE_URI).contents[0];
+  if (
+    resourceUris.join(',') !== UPLOAD_RESOURCE_URI ||
+    uploadView.mimeType !== MCP_APP_MIME_TYPE ||
+    !uploadView.text.includes('ui/initialize')
+  ) {
+    console.error('❌ ui://voicelab/upload resource is missing or malformed');
+    process.exit(1);
+  }
+  console.log('✓ ui://voicelab/upload resource served as text/html;profile=mcp-app');
   
   console.log('\n✅ All smoke tests passed!');
   console.log('\nNote: To run the full server, set VOICELAB_API_KEY and run:');
