@@ -68,7 +68,8 @@ remain unapproved until product checks are added.
 
 CI is rechecked every five minutes using cached review metadata, without another
 model call. A changed head/base or failed CI rerun withdraws this app's approval;
-human approvals are untouched. Merge-commit checks are accepted only when their
+human approvals are untouched. If a human dismisses an app approval, it is not
+automatically restored on the same revision. Merge-commit checks are accepted only when their
 parents match the reviewed base and head. Human merge-time checks remain important
 because GitHub reads and review writes are not atomic.
 
