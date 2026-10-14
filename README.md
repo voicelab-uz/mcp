@@ -10,6 +10,7 @@ Official [Model Context Protocol (MCP)](https://modelcontextprotocol.io) server 
 - **Voice Isolation**: Remove background noise with optional speech restoration
 - **Voice Management**: List and discover available voices
 - **Realtime Support**: Create WebSocket tickets for streaming TTS/STT
+- **Meeting AI**: Upload recordings, poll transcripts, summaries, decisions, and action items
 
 ## Installation
 
@@ -231,6 +232,17 @@ Public discovery (no auth): `GET /health`, `GET /v1`, `GET /.well-known/mcp.json
 
 - `create_realtime_ticket` — Create WebSocket ticket for streaming TTS or STT
 
+#### Meeting AI
+
+- `list_meeting_capabilities` — List supported recording languages and feature flags
+- `create_meeting` — Upload a recording (returns 202; poll `get_meeting`)
+- `list_meetings` — List meetings or refresh selected IDs
+- `get_meeting` — Poll status and read transcript, summary, decisions, and action items
+- `rename_meeting` — Change a meeting title
+- `delete_meeting` — Delete a meeting and its results (destructive)
+- `regenerate_meeting_notes` — Retry notes after a notes failure (`transcribed` only)
+- `get_meeting_translations` — Attempt translations (docs: not available with API keys)
+
 ### Example Agent Prompts
 
 **Generate speech:**
@@ -250,13 +262,19 @@ Remove background noise from this call recording using VoiceLab voice isolation.
 [Attach audio file]
 ```
 
+**Meeting notes:**
+```
+Upload this recording to VoiceLab Meeting AI, poll until it is ready, and give me the summary, decisions, and action items.
+[Attach audio file]
+```
+
 ## API Reference
 
 Full API documentation: [https://docs.voicelab.uz](https://docs.voicelab.uz)
 
 ### Idempotency
 
-STT, TTS, and Voice Isolator tools auto-generate UUIDs for idempotency when not provided. Retries with the same key and body return the original result without reprocessing or charging again.
+STT, TTS, Voice Isolator, and Meeting AI upload tools auto-generate UUIDs for idempotency when not provided. Retries with the same key and body return the original result without reprocessing or charging again.
 
 ### Binary Audio Handling
 
@@ -265,12 +283,12 @@ STT, TTS, and Voice Isolator tools auto-generate UUIDs for idempotency when not 
 
 ### Polling
 
-STT transcriptions and Voice Isolator jobs are asynchronous:
-1. Call `speech_to_text` or `isolate_voice` to submit
-2. Poll `get_transcription` or `get_isolation` until `status: "completed"`
+STT transcriptions, Voice Isolator jobs, and Meeting AI uploads are asynchronous:
+1. Call `speech_to_text`, `isolate_voice`, or `create_meeting` to submit
+2. Poll `get_transcription` or `get_isolation` until `status: "completed"`; poll `get_meeting` until status is `ready`, `transcribed`, or `failed` (not `queued` or `running`)
 3. Access results from the completed response
 
-Respect `Retry-After` headers when present.
+Respect `Retry-After` headers when present. Meeting AI has no completion webhooks.
 
 ## Development
 
@@ -297,7 +315,8 @@ src/
 ├── stt.ts            # Speech-to-Text module
 ├── voices.ts         # Voices module
 ├── isolator.ts       # Voice Isolator module
-└── realtime.ts       # Realtime ticket module
+├── realtime.ts       # Realtime ticket module
+└── meetings.ts       # Meeting AI module
 ```
 
 ## Deployment
@@ -514,7 +533,8 @@ MIT License - see [LICENSE](LICENSE) file for details.
 Per the VoiceLab developer API contract, this MCP server does **not** expose:
 
 - Account JWT analytics and API-key management UI routes
-- Meeting AI / voice-agent dashboard data
+- Meeting AI dashboard-only surfaces (audio download, transcript/notes editing, speaker renaming, webhooks). Translations are documented as unavailable with API keys; `get_meeting_translations` still attempts `GET /v1/meetings/{id}/translations` and may fail.
+- Voice-agent dashboard data
 - Browser realtime streams (use `create_realtime_ticket` for WebSocket setup)
 
-These features are first-party dashboard surfaces, not part of the server-to-server API-key contract.
+Developer Meeting AI uses `/v1/meetings` with an API key (`meetings` Access). Dashboard routes at `/api/v1/meetings` require a user JWT and are not used here.

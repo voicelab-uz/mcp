@@ -5,6 +5,7 @@ import { STTModule } from './stt.js';
 import { VoicesModule } from './voices.js';
 import { VoiceIsolatorModule } from './isolator.js';
 import { RealtimeModule } from './realtime.js';
+import { MeetingsModule } from './meetings.js';
 import { handleToolCall } from './tools.js';
 import { VERSION } from './version.js';
 import { Hono } from 'hono';
@@ -61,8 +62,9 @@ app.post('/mcp', async (c) => {
     const voices = new VoicesModule(client);
     const isolator = new VoiceIsolatorModule(client);
     const realtime = new RealtimeModule(client);
+    const meetings = new MeetingsModule(client);
 
-    const modules = { llm, tts, stt, voices, isolator, realtime };
+    const modules = { llm, tts, stt, voices, isolator, realtime, meetings };
 
     if (method === 'tools/list') {
       // Return list of available tools
@@ -89,6 +91,14 @@ app.post('/mcp', async (c) => {
         { name: 'get_isolation_export', description: 'Get isolation export' },
         { name: 'hide_isolation', description: 'Hide isolation job from history' },
         { name: 'create_realtime_ticket', description: 'Create realtime WebSocket ticket' },
+        { name: 'list_meeting_capabilities', description: 'List Meeting AI languages and feature flags' },
+        { name: 'create_meeting', description: 'Upload a meeting recording for transcription and notes' },
+        { name: 'list_meetings', description: 'List Meeting AI history' },
+        { name: 'get_meeting', description: 'Get meeting status, transcript, and notes' },
+        { name: 'rename_meeting', description: 'Rename a meeting' },
+        { name: 'delete_meeting', description: 'Delete a meeting' },
+        { name: 'regenerate_meeting_notes', description: 'Retry notes after a notes failure' },
+        { name: 'get_meeting_translations', description: 'Get meeting translations (API-key support not documented)' },
       ];
 
       return c.json({

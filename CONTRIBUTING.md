@@ -98,7 +98,8 @@ This server aims to cover **all** developer API-key endpoints from https://docs.
 **Out of scope:**
 - JWT-authenticated dashboard routes
 - Account management APIs (except API key CRUD if documented for developers)
-- Meeting AI / voice-agent internal routes
+- Meeting AI dashboard JWT routes (`/api/v1/meetings`: audio download, editing, speaker renaming, webhooks). Developer `/v1/meetings` tools are in `src/meetings.ts`.
+- Voice-agent internal routes
 
 ## Pull Request Process
 
