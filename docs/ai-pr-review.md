@@ -9,6 +9,11 @@ not reviewed. Bot-authored PRs are not intentionally excluded.
 
 ## Enable
 
+GitHub Actions must be enabled under **Settings → Actions → General**. When
+Actions is disabled, neither the reviewer nor its CI tests will run. Enabling
+Actions is a repository-wide setting, so confirm that it fits the repository's
+workflow policy before changing it.
+
 1. Merge `.github/ai-review/` and both workflows into the repository's **default
    branch**. The privileged reviewer always runs that branch's implementation.
 2. In **Settings → Secrets and variables → Actions → New repository secret**, add
@@ -155,7 +160,8 @@ model reduce risk but cannot guarantee factual correctness.
 
 Changes to the reviewer take effect only after merging into the default branch.
 Keep its files under normal maintainer review. Bump the runner policy `VERSION`
-when changing review behavior so a manually rerun revision can use the new policy. The separate `AI reviewer tests`
+when changing review behavior so a manually rerun revision can use the new policy.
+The separate `AI reviewer tests`
 workflow uses `pull_request` with read-only permissions and **no AI& secret** to
 test proposed changes safely. Production release checks remain separate.
 
@@ -186,4 +192,5 @@ If a run fails, inspect **Actions → AI PR review → Review changed code**:
   or use a model that supports AI&'s structured output surface.
 - GitHub HTTP 422: check whether the PR changed during publication, then rerun.
 
-Treat this as an advisory workflow alongside repository CI and human review. It is not configured as a required merge gate.
+Treat this as an advisory workflow alongside repository CI and human review.
+It is not configured as a required merge gate.
