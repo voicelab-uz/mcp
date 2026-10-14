@@ -233,7 +233,7 @@ export const meetingTools: Tool[] = [
   {
     name: 'create_meeting',
     description:
-      'Submit a meeting recording for asynchronous transcription and notes (POST /v1/meetings). Provide exactly one audio source: upload_id (preferred for large files: a ready upload from upload_audio), audio_url (public HTTPS URL the API downloads), or audio_base64 (small files only: the MCP request body is capped at 10 MiB, so base64 audio must be under ~7 MB). Returns 202 Accepted with meeting (status queued). Poll get_meeting until status is ready, transcribed, or failed — not queued or running. Requires meetings:write and a UUID Idempotency-Key (auto-generated if omitted). Optional title (1–160 chars, single line; defaults to filename) and language (`auto` or a capabilities code; default auto). Limits: 500 MiB, 0.5 seconds–24 hours, MP3/WAV/M4A/AAC/OGG/Opus/WebM/Opus/FLAC, 10 queued or running meetings per account. Personal workspace keys only. Developer responses never include audio playback URLs.',
+      'Submit a meeting recording for asynchronous transcription and notes (POST /v1/meetings). Provide exactly one audio source: audio_url (public HTTPS URL the API downloads; preferred for large files) or audio_base64 (small files only: the MCP request body is capped at 10 MiB, so base64 audio must be under ~7 MB). Returns 202 Accepted with meeting (status queued). Poll get_meeting until status is ready, transcribed, or failed — not queued or running. Requires meetings:write and a UUID Idempotency-Key (auto-generated if omitted). Optional title (1–160 chars, single line; defaults to filename) and language (`auto` or a capabilities code; default auto). Limits: 500 MiB, 0.5 seconds–24 hours, MP3/WAV/M4A/AAC/OGG/Opus/WebM/Opus/FLAC, 10 queued or running meetings per account. Personal workspace keys only. Developer responses never include audio playback URLs.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -242,17 +242,13 @@ export const meetingTools: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        upload_id: {
-          type: 'string',
-          description: 'ID of a ready upload (upl_...) from upload_audio. Single-use. Mutually exclusive with audio_url and audio_base64.',
-        },
         audio_url: {
           type: 'string',
-          description: 'Public HTTPS URL of the recording (max 4096 chars). Mutually exclusive with upload_id and audio_base64.',
+          description: 'Public HTTPS URL of the recording (max 4096 chars). Mutually exclusive with the other audio sources.',
         },
         audio_base64: {
           type: 'string',
-          description: 'Base64-encoded audio (MP3, WAV, M4A/AAC, OGG/Opus, WebM/Opus, or FLAC). Only for small files: keep under ~7 MB because the MCP request body is capped at 10 MiB. Mutually exclusive with upload_id and audio_url.',
+          description: 'Base64-encoded audio (MP3, WAV, M4A/AAC, OGG/Opus, WebM/Opus, or FLAC). Only for small files: keep under ~7 MB because the MCP request body is capped at 10 MiB. Mutually exclusive with the other audio sources.',
         },
         title: {
           type: 'string',

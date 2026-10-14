@@ -76,7 +76,7 @@ function sessionResponse() {
 
 describe('resolveAudioSource', () => {
   it('resolves each single source', () => {
-    assert.deepStrictEqual(resolveAudioSource({ upload_id: UPLOAD_ID }), { kind: 'upload', id: UPLOAD_ID });
+    assert.deepStrictEqual(resolveAudioSource({ upload_id: UPLOAD_ID }, { uploadSessions: true }), { kind: 'upload', id: UPLOAD_ID });
     assert.deepStrictEqual(resolveAudioSource({ audio_url: 'https://x.example/a.mp3' }), {
       kind: 'url',
       url: 'https://x.example/a.mp3',
@@ -89,14 +89,14 @@ describe('resolveAudioSource', () => {
   it('rejects zero or multiple sources', () => {
     assert.throws(() => resolveAudioSource({}), (e: any) => e.code === 'invalid_audio_source');
     assert.throws(
-      () => resolveAudioSource({ upload_id: UPLOAD_ID, audio_url: 'https://x.example/a.mp3' }),
+      () => resolveAudioSource({ upload_id: UPLOAD_ID, audio_url: 'https://x.example/a.mp3' }, { uploadSessions: true }),
       /exactly one/
     );
     assert.throws(() => resolveAudioSource({ audio_base64: 'AQID', audio_url: 'https://x' }), /exactly one/);
   });
 
   it('treats empty strings and null as absent', () => {
-    assert.deepStrictEqual(resolveAudioSource({ upload_id: UPLOAD_ID, audio_url: '', audio_base64: null }), {
+    assert.deepStrictEqual(resolveAudioSource({ upload_id: UPLOAD_ID, audio_url: '', audio_base64: null }, { uploadSessions: true }), {
       kind: 'upload',
       id: UPLOAD_ID,
     });
@@ -118,10 +118,19 @@ describe('resolveAudioSource', () => {
     }
   });
 
-  it('validates upload_id format', () => {
-    assert.throws(() => resolveAudioSource({ upload_id: 'upl_short' }), /upl_/);
-    assert.throws(() => resolveAudioSource({ upload_id: '../v1/admin' }), /upl_/);
-    assert.throws(() => resolveAudioSource({ upload_id: 42 }), /upl_/);
+  it('validates upload_id format when upload sessions are enabled', () => {
+    const on = { uploadSessions: true };
+    assert.throws(() => resolveAudioSource({ upload_id: 'upl_short' }, on), /upl_/);
+    assert.throws(() => resolveAudioSource({ upload_id: '../v1/admin' }, on), /upl_/);
+    assert.throws(() => resolveAudioSource({ upload_id: 42 }, on), /upl_/);
+  });
+
+  it('rejects upload_id with a clear error when upload sessions are disabled (default)', () => {
+    assert.throws(
+      () => resolveAudioSource({ upload_id: UPLOAD_ID }),
+      (e: any) => e.code === 'invalid_audio_source' && /upload sessions are disabled/.test(e.message) && /audio_url/.test(e.message)
+    );
+    assert.throws(() => resolveAudioSource({}), (e: any) => !/upload_id/.test(e.message));
   });
 
   it('rejects empty base64 payloads', () => {
@@ -136,7 +145,7 @@ describe('speech_to_text and create_meeting multipart sources', () => {
     [{ audio_base64: 'AQID' }, 'audio'],
   ] as const) {
     it(`speech_to_text sends only ${field}`, async () => {
-      const { client, call } = setup();
+      const { client, call } = setup({ MCP_ENABLE_UPLOAD_SESSIONS: '1' });
       client.responses.push({ id: 'stt_1', status: 'queued' });
       const result: any = await call('speech_to_text', { ...args, language: 'uz' });
       assert.ok(!result.isError, JSON.stringify(result));
@@ -149,7 +158,7 @@ describe('speech_to_text and create_meeting multipart sources', () => {
     });
 
     it(`create_meeting sends only ${field}`, async () => {
-      const { client, call } = setup();
+      const { client, call } = setup({ MCP_ENABLE_UPLOAD_SESSIONS: '1' });
       client.responses.push({ meeting: { id: 'mtg_1' } });
       const result: any = await call('create_meeting', { ...args, title: 'T' });
       assert.ok(!result.isError);
@@ -159,6 +168,17 @@ describe('speech_to_text and create_meeting multipart sources', () => {
     });
   }
 
+  it('upload_id is rejected before any API call when upload sessions are off', async () => {
+    const { client, call } = setup();
+    for (const tool of ['create_meeting', 'speech_to_text']) {
+      await assert.rejects(
+        () => call(tool, { upload_id: UPLOAD_ID, language: 'uz' }) as Promise<unknown>,
+        /upload sessions are disabled/
+      );
+    }
+    assert.strictEqual(client.calls.length, 0);
+  });
+
   it('speech_to_text requires language', async () => {
     const { call } = setup();
     await assert.rejects(() => call('speech_to_text', { upload_id: UPLOAD_ID }) as Promise<unknown>, /language/);
@@ -167,7 +187,7 @@ describe('speech_to_text and create_meeting multipart sources', () => {
   it('create_meeting rejects conflicting sources before calling the API', async () => {
     const { client, call } = setup();
     await assert.rejects(
-      () => call('create_meeting', { upload_id: UPLOAD_ID, audio_base64: 'AQID' }) as Promise<unknown>,
+      () => call('create_meeting', { audio_url: 'https://x.example/a.mp3', audio_base64: 'AQID' }) as Promise<unknown>,
       /exactly one/
     );
     assert.strictEqual(client.calls.length, 0);
@@ -175,8 +195,18 @@ describe('speech_to_text and create_meeting multipart sources', () => {
 });
 
 describe('upload sessions', () => {
-  it('upload_audio returns the token only in result _meta', async () => {
+  it('upload tools are unknown when MCP_ENABLE_UPLOAD_SESSIONS is off', async () => {
     const { client, call } = setup();
+    for (const tool of ['upload_audio', 'create_upload_session', 'get_upload']) {
+      const result: any = await call(tool, { purpose: 'meeting', upload_id: UPLOAD_ID });
+      assert.strictEqual(result.isError, true, tool);
+      assert.match(result.content[0].text, /Unknown tool/);
+    }
+    assert.strictEqual(client.calls.length, 0);
+  });
+
+  it('upload_audio returns the token only in result _meta', async () => {
+    const { client, call } = setup({ MCP_ENABLE_UPLOAD_SESSIONS: '1' });
     client.responses.push(sessionResponse());
     const result: any = await call('upload_audio', { purpose: 'meeting', title: 'Sync' });
     assert.deepStrictEqual(client.calls[0].options.body, { purpose: 'meeting' });
@@ -200,7 +230,7 @@ describe('upload sessions', () => {
   });
 
   it('upload_audio adds a fragment link only when UPLOAD_PAGE_URL is configured', async () => {
-    const { client, call } = setup({ UPLOAD_PAGE_URL: 'https://voicelab.uz/upload' });
+    const { client, call } = setup({ MCP_ENABLE_UPLOAD_SESSIONS: '1', UPLOAD_PAGE_URL: 'https://voicelab.uz/upload' });
     client.responses.push(sessionResponse());
     const result: any = await call('upload_audio', { purpose: 'stt' });
     const link = result.structuredContent.browser_upload_url as string;
@@ -217,7 +247,7 @@ describe('upload sessions', () => {
   });
 
   it('create_upload_session forwards filename/content_type/size and validates purpose', async () => {
-    const { client, call } = setup();
+    const { client, call } = setup({ MCP_ENABLE_UPLOAD_SESSIONS: '1' });
     client.responses.push(sessionResponse());
     const result: any = await call('create_upload_session', {
       purpose: 'meeting',
@@ -236,7 +266,7 @@ describe('upload sessions', () => {
   });
 
   it('get_upload validates the id and calls GET /v1/uploads/{id}', async () => {
-    const { client, call } = setup();
+    const { client, call } = setup({ MCP_ENABLE_UPLOAD_SESSIONS: '1' });
     client.responses.push({ upload: { id: UPLOAD_ID, status: 'ready' } });
     const result: any = await call('get_upload', { upload_id: UPLOAD_ID });
     assert.strictEqual(client.calls[0].method, 'GET');
@@ -359,11 +389,11 @@ describe('tool list and _meta', () => {
     assert.ok(on._meta['voicelab/spike'].nonce);
   });
 
-  it('tools/list over MCP (raw wire) keeps securitySchemes and _meta.ui', async () => {
+  async function rawToolsList(env: Record<string, string>) {
     const server = createMcpServer({
       apiKey: 'vlk_test',
       baseUrl: 'https://api.voicelab.uz',
-      apps: loadAppsConfig({}),
+      apps: loadAppsConfig(env),
       verifiedUser: 'legacy',
     });
     const [serverSide, clientSide] = InMemoryTransport.createLinkedPair();
@@ -384,33 +414,69 @@ describe('tool list and _meta', () => {
         capabilities: {},
         clientInfo: { name: 'raw', version: '0' },
       });
-      assert.ok(init.result.capabilities.resources, 'resources capability');
-      assert.ok(init.result.capabilities.tools, 'tools capability');
       const list = await rpc(2, 'tools/list');
       const byName: Record<string, any> = Object.fromEntries(list.result.tools.map((t: any) => [t.name, t]));
-      for (const name of ['upload_audio', 'create_upload_session', 'get_upload', 'create_meeting_from_file', 'transcribe_file', 'create_meeting', 'speech_to_text']) {
-        assert.ok(byName[name], name);
-        assert.ok(byName[name].securitySchemes, `${name} securitySchemes`);
-      }
-      assert.strictEqual(byName.upload_audio._meta.ui.resourceUri, 'ui://voicelab/upload');
-      assert.deepStrictEqual(byName.upload_audio._meta.ui.visibility, ['model', 'app']);
-      assert.strictEqual(byName.upload_audio._meta['openai/outputTemplate'], 'ui://voicelab/upload');
-      assert.deepStrictEqual(byName.create_upload_session._meta.ui.visibility, ['app']);
-      assert.strictEqual(byName.create_upload_session._meta['openai/visibility'], 'private');
-      assert.strictEqual(byName.create_upload_session._meta['openai/widgetAccessible'], true);
-      assert.deepStrictEqual(byName.create_meeting._meta.ui.visibility, ['model', 'app']);
-      assert.deepStrictEqual(byName.speech_to_text._meta.ui.visibility, ['model', 'app']);
-      assert.deepStrictEqual(byName.speech_to_text.inputSchema.required, ['language']);
-      assert.deepStrictEqual(byName.create_meeting_from_file._meta['openai/fileParams'], ['file']);
-      assert.ok(byName.create_meeting_from_file.inputSchema.$defs.OpenAIFile);
-      assert.strictEqual(byName.get_profile._meta['openai/profile'], true);
-      assert.ok(!byName.get_profile.securitySchemes);
-      assert.ok(!byName.upload_spike);
-      // Isolator is intentionally unchanged (no audio_url / upload_id).
-      assert.ok(!('audio_url' in byName.isolate_voice.inputSchema.properties));
-      assert.ok(!('upload_id' in byName.isolate_voice.inputSchema.properties));
+      return { capabilities: init.result.capabilities, byName };
     } finally {
       await server.close();
     }
+  }
+
+  it('tools/list (raw wire, upload sessions OFF): no upload tools, no upload_id, fileParams tools present', async () => {
+    const { capabilities, byName } = await rawToolsList({});
+    assert.ok(capabilities.resources, 'resources capability');
+    assert.ok(capabilities.tools, 'tools capability');
+    for (const name of ['upload_audio', 'create_upload_session', 'get_upload', 'upload_spike']) {
+      assert.ok(!byName[name], `${name} must be hidden`);
+    }
+    for (const name of ['create_meeting', 'speech_to_text']) {
+      assert.ok(!('upload_id' in byName[name].inputSchema.properties), `${name} upload_id`);
+      assert.ok('audio_url' in byName[name].inputSchema.properties);
+      assert.ok('audio_base64' in byName[name].inputSchema.properties);
+      assert.ok(!/upload_id|upload_audio/.test(byName[name].description), `${name} description`);
+      assert.ok(byName[name].securitySchemes);
+      assert.deepStrictEqual(byName[name]._meta.ui.visibility, ['model', 'app']);
+    }
+    for (const name of ['create_meeting_from_file', 'transcribe_file']) {
+      assert.ok(byName[name], name);
+      assert.deepStrictEqual(byName[name]._meta['openai/fileParams'], ['file']);
+      assert.ok(!/upload_audio/.test(byName[name].description));
+    }
+    assert.deepStrictEqual(byName.speech_to_text.inputSchema.required, ['language']);
+    assert.strictEqual(byName.get_profile._meta['openai/profile'], true);
+    assert.ok(!byName.get_profile.securitySchemes);
+  });
+
+  it('tools/list (raw wire, upload sessions ON) keeps securitySchemes and _meta.ui', async () => {
+    const { byName } = await rawToolsList({ MCP_ENABLE_UPLOAD_SESSIONS: '1' });
+    for (const name of ['upload_audio', 'create_upload_session', 'get_upload', 'create_meeting_from_file', 'transcribe_file', 'create_meeting', 'speech_to_text']) {
+      assert.ok(byName[name], name);
+      assert.ok(byName[name].securitySchemes, `${name} securitySchemes`);
+    }
+    assert.strictEqual(byName.upload_audio._meta.ui.resourceUri, 'ui://voicelab/upload');
+    assert.deepStrictEqual(byName.upload_audio._meta.ui.visibility, ['model', 'app']);
+    assert.strictEqual(byName.upload_audio._meta['openai/outputTemplate'], 'ui://voicelab/upload');
+    assert.deepStrictEqual(byName.create_upload_session._meta.ui.visibility, ['app']);
+    assert.strictEqual(byName.create_upload_session._meta['openai/visibility'], 'private');
+    assert.strictEqual(byName.create_upload_session._meta['openai/widgetAccessible'], true);
+    for (const name of ['create_meeting', 'speech_to_text']) {
+      assert.strictEqual(byName[name].inputSchema.properties.upload_id.type, 'string');
+      assert.match(byName[name].description, /upload_id \(preferred for large local files: a ready upload from upload_audio\)/);
+      assert.deepStrictEqual(byName[name]._meta.ui.visibility, ['model', 'app']);
+      assert.ok(!('oneOf' in byName[name].inputSchema));
+    }
+    assert.deepStrictEqual(byName.speech_to_text.inputSchema.required, ['language']);
+    assert.ok(byName.create_meeting_from_file.inputSchema.$defs.OpenAIFile);
+    assert.strictEqual(byName.get_profile._meta['openai/profile'], true);
+    assert.ok(!byName.upload_spike);
+    // Isolator is intentionally unchanged (no audio_url / upload_id).
+    assert.ok(!('audio_url' in byName.isolate_voice.inputSchema.properties));
+    assert.ok(!('upload_id' in byName.isolate_voice.inputSchema.properties));
+  });
+
+  it('listTools does not mutate the shared descriptors when upload sessions are on', () => {
+    listTools({ apps: loadAppsConfig({ MCP_ENABLE_UPLOAD_SESSIONS: '1' }) });
+    const off = Object.fromEntries(listTools().map((t) => [t.name, t]));
+    assert.ok(!('upload_id' in (off.create_meeting.inputSchema.properties as object)));
   });
 });

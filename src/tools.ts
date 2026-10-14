@@ -35,7 +35,7 @@ export interface ToolsOptions {
 }
 
 const DEFAULT_TOOLS_OPTIONS: ToolsOptions = {
-  apps: { apiOrigin: DEFAULT_API_ORIGIN, widgetDomain: DEFAULT_WIDGET_DOMAIN },
+  apps: { apiOrigin: DEFAULT_API_ORIGIN, widgetDomain: DEFAULT_WIDGET_DOMAIN, uploadSessions: false },
 };
 
 /** Thrown for invalid tool arguments; serialized like VoiceLab API errors. */
@@ -77,19 +77,27 @@ const AUDIO_SOURCE_KEYS = ['upload_id', 'audio_url', 'audio_base64'] as const;
 
 /**
  * Resolve exactly one audio source from tool arguments:
- * upload_id (upl_...), audio_url (https, <= 4096 chars) or audio_base64.
+ * audio_url (https, <= 4096 chars), audio_base64, or — only when upload sessions
+ * are enabled (MCP_ENABLE_UPLOAD_SESSIONS=1) — upload_id (upl_...).
  */
 export function resolveAudioSource(
   args: Record<string, unknown>,
-  options: { filename?: string } = {}
+  options: { filename?: string; uploadSessions?: boolean } = {}
 ): AudioSource {
   const provided = AUDIO_SOURCE_KEYS.filter(
     (key) => args[key] !== undefined && args[key] !== null && args[key] !== ''
   );
+  if (provided.includes('upload_id') && !options.uploadSessions) {
+    throw new ToolInputError(
+      'upload_id is not supported on this server yet (upload sessions are disabled); use audio_url or audio_base64',
+      'invalid_audio_source'
+    );
+  }
+  const allowed = options.uploadSessions ? 'upload_id, audio_url, or audio_base64' : 'audio_url or audio_base64';
   if (provided.length !== 1) {
     throw new ToolInputError(
       provided.length === 0
-        ? 'Provide one audio source: upload_id, audio_url, or audio_base64'
+        ? `Provide one audio source: ${allowed}`
         : `Provide exactly one audio source; got ${provided.join(', ')}`,
       'invalid_audio_source'
     );
@@ -263,11 +271,42 @@ function requireLanguage(value: unknown): string {
   return value.trim();
 }
 
-/** Full tool list for the given configuration (spike tools only when enabled). */
+const UPLOAD_SOURCE_TOOLS: Record<string, string> = {
+  create_meeting: 'ID of a ready upload (upl_...) from upload_audio with purpose meeting. Single-use. Mutually exclusive with the other audio sources.',
+  speech_to_text: 'ID of a ready upload (upl_...) from upload_audio with purpose stt. Single-use. Mutually exclusive with the other audio sources.',
+};
+
+/** Add the upload_id source (schema + description) to create_meeting / speech_to_text. */
+function withUploadIdSource(tool: Tool): Tool {
+  const uploadIdDescription = UPLOAD_SOURCE_TOOLS[tool.name];
+  if (!uploadIdDescription) return tool;
+  return {
+    ...tool,
+    description: (tool.description ?? '')
+      .replace('; preferred for large files)', ')')
+      .replace(
+        'Provide exactly one audio source: ',
+        'Provide exactly one audio source: upload_id (preferred for large local files: a ready upload from upload_audio), '
+      ),
+    inputSchema: {
+      ...tool.inputSchema,
+      properties: {
+        upload_id: { type: 'string', description: uploadIdDescription },
+        ...(tool.inputSchema.properties ?? {}),
+      },
+    },
+  };
+}
+
+/**
+ * Full tool list for the given configuration. Upload-session tools and the upload_id
+ * source only with MCP_ENABLE_UPLOAD_SESSIONS=1; spike tools only with MCP_ENABLE_SPIKE=1.
+ */
 export function listTools(options: ToolsOptions = DEFAULT_TOOLS_OPTIONS): Tool[] {
+  const uploads = options.apps.uploadSessions;
   return [
-    ...tools,
-    ...uploadTools,
+    ...(uploads ? tools.map(withUploadIdSource) : tools),
+    ...(uploads ? uploadTools : []),
     ...fileParamTools,
     ...(options.apps.spike ? spikeTools : []),
   ];
@@ -453,7 +492,7 @@ const tools: Tool[] = [
   },
   {
     name: 'speech_to_text',
-    description: 'Transcribe audio asynchronously. Provide exactly one audio source: upload_id (preferred for large local files: a ready upload from upload_audio), audio_url (public HTTPS URL the API downloads), or audio_base64 (small files only: the MCP request body is capped at 10 MiB, so base64 audio must be under ~7 MB). Returns 202 Accepted with job ID for polling (even for short clips). Poll get_transcription until status is completed. Generates unique idempotency key if not provided.',
+    description: 'Transcribe audio asynchronously. Provide exactly one audio source: audio_url (public HTTPS URL the API downloads; preferred for large files) or audio_base64 (small files only: the MCP request body is capped at 10 MiB, so base64 audio must be under ~7 MB). Returns 202 Accepted with job ID for polling (even for short clips). Poll get_transcription until status is completed. Generates unique idempotency key if not provided.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -462,9 +501,8 @@ const tools: Tool[] = [
     inputSchema: {
       type: 'object',
       properties: {
-        upload_id: { type: 'string', description: 'ID of a ready upload (upl_...) from upload_audio with purpose stt. Single-use. Mutually exclusive with audio_url and audio_base64.' },
-        audio_url: { type: 'string', description: 'Public HTTPS URL of the audio (max 4096 chars). Mutually exclusive with upload_id and audio_base64.' },
-        audio_base64: { type: 'string', description: 'Base64-encoded audio file (MP3, WAV, M4A, OGG, WebM, FLAC). Keep under ~7 MB (10 MiB MCP request cap). Mutually exclusive with upload_id and audio_url.' },
+        audio_url: { type: 'string', description: 'Public HTTPS URL of the audio (max 4096 chars). Mutually exclusive with the other audio sources.' },
+        audio_base64: { type: 'string', description: 'Base64-encoded audio file (MP3, WAV, M4A, OGG, WebM, FLAC). Keep under ~7 MB (10 MiB MCP request cap). Mutually exclusive with the other audio sources.' },
         language: { type: 'string', description: 'Language code (uz, en, ru)' },
         include_speakers: { type: 'boolean', description: 'Enable speaker diarization (default false)' },
         idempotency_key: { type: 'string', description: 'Optional UUID idempotency key (auto-generated if omitted)' },
@@ -972,7 +1010,7 @@ export async function handleToolCall(
 
     case 'speech_to_text': {
       const language = requireLanguage(toolArgs.language);
-      const source = resolveAudioSource(toolArgs);
+      const source = resolveAudioSource(toolArgs, { uploadSessions: options.apps.uploadSessions });
       const idempotencyKey = toolArgs.idempotency_key || generateUUID();
       const result = await stt.transcribeAudio(
         source,
@@ -1127,7 +1165,7 @@ export async function handleToolCall(
 
     case 'create_meeting': {
       const filename = (toolArgs.filename as string | undefined) || 'meeting.audio';
-      const source = resolveAudioSource(toolArgs, { filename });
+      const source = resolveAudioSource(toolArgs, { filename, uploadSessions: options.apps.uploadSessions });
       const idempotencyKey = toolArgs.idempotency_key || generateUUID();
       const result = await meetings.createMeeting(source, idempotencyKey, {
         title: toolArgs.title as string | undefined,
@@ -1182,12 +1220,14 @@ export async function handleToolCall(
     }
 
     case 'upload_audio': {
+      if (!options.apps.uploadSessions) return unknownTool(name);
       const purpose = requirePurpose(toolArgs.purpose);
       const session = await requireUploads(modules).createSession(purpose);
       return uploadSessionResult(session, purpose, options.apps, 'model');
     }
 
     case 'create_upload_session': {
+      if (!options.apps.uploadSessions) return unknownTool(name);
       const purpose = requirePurpose(toolArgs.purpose);
       const filename = typeof toolArgs.filename === 'string' ? toolArgs.filename.slice(0, 255) : undefined;
       const contentType = typeof toolArgs.content_type === 'string' ? toolArgs.content_type.slice(0, 255) : undefined;
@@ -1201,6 +1241,7 @@ export async function handleToolCall(
     }
 
     case 'get_upload': {
+      if (!options.apps.uploadSessions) return unknownTool(name);
       const uploadId = toolArgs.upload_id;
       if (typeof uploadId !== 'string' || !UPLOAD_ID_PATTERN.test(uploadId)) {
         throw new ToolInputError('upload_id must match upl_[A-Za-z0-9]{20,40}');

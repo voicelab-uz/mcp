@@ -11,6 +11,7 @@ It is staging-only. The tool and resource do not exist unless both env vars are 
 | `MCP_ENABLE_SPIKE` | `1` |
 | `SPIKE_ECHO_URL` | HTTPS URL that accepts `PUT` with CORS `Access-Control-Allow-Origin: *` and allows the `Content-Type` and `X-Upload-Token` request headers |
 
+The spike is independent of `MCP_ENABLE_UPLOAD_SESSIONS` (it does not touch `/v1/uploads`).
 If `SPIKE_ECHO_URL` is missing or not `https`, the server logs a config warning and keeps the spike disabled.
 
 When enabled, the server exposes:

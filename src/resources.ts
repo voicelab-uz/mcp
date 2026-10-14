@@ -53,8 +53,9 @@ function cspMeta(
 
 export function uiResources(config: AppsConfig): UiResource[] {
   const pageOrigin = originOf(config.uploadPageUrl);
-  const resources: UiResource[] = [
-    {
+  const resources: UiResource[] = [];
+  if (config.uploadSessions) {
+    resources.push({
       uri: UPLOAD_RESOURCE_URI,
       name: 'voicelab-upload',
       title: 'Upload audio to VoiceLab',
@@ -67,8 +68,8 @@ export function uiResources(config: AppsConfig): UiResource[] {
         pageOrigin ? [pageOrigin] : []
       ),
       render: () => renderUploadViewHtml({ apiOrigin: config.apiOrigin }),
-    },
-  ];
+    });
+  }
   if (config.spike) {
     const spike = config.spike;
     resources.push({

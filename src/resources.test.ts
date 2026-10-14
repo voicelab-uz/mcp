@@ -36,8 +36,22 @@ async function connect(env: Record<string, string> = {}) {
 }
 
 describe('ui:// resources', () => {
-  it('resources/read returns the upload view with MCP Apps mime type and CSP', async () => {
+  it('with upload sessions OFF (default) no upload resource is listed or readable', async () => {
     const { client, close } = await connect();
+    try {
+      const { resources } = await client.listResources();
+      assert.deepStrictEqual(resources, []);
+      await assert.rejects(
+        () => client.readResource({ uri: UPLOAD_RESOURCE_URI }),
+        (e: any) => e instanceof McpError && e.code === RESOURCE_NOT_FOUND
+      );
+    } finally {
+      await close();
+    }
+  });
+
+  it('resources/read returns the upload view with MCP Apps mime type and CSP (upload sessions ON)', async () => {
+    const { client, close } = await connect({ MCP_ENABLE_UPLOAD_SESSIONS: '1' });
     try {
       const { resources } = await client.listResources();
       assert.deepStrictEqual(resources.map((r) => r.uri), [UPLOAD_RESOURCE_URI]);
@@ -88,8 +102,9 @@ describe('ui:// resources', () => {
   it('spike resource is listed only when enabled, with CSP from SPIKE_ECHO_URL origin', () => {
     const env = { MCP_ENABLE_SPIKE: '1', SPIKE_ECHO_URL: 'https://echo.staging.voicelab.uz/put?x=1' };
     const config = loadAppsConfig(env);
+    assert.deepStrictEqual(listResourcesResult(config).resources.map((r) => r.uri), [SPIKE_RESOURCE_URI]);
     assert.deepStrictEqual(
-      listResourcesResult(config).resources.map((r) => r.uri),
+      listResourcesResult(loadAppsConfig({ ...env, MCP_ENABLE_UPLOAD_SESSIONS: '1' })).resources.map((r) => r.uri),
       [UPLOAD_RESOURCE_URI, SPIKE_RESOURCE_URI]
     );
     const content: any = readResourceResult(config, SPIKE_RESOURCE_URI).contents[0];
@@ -100,7 +115,7 @@ describe('ui:// resources', () => {
   });
 
   it('adds redirect_domains for the browser upload page when configured', () => {
-    const config = loadAppsConfig({ UPLOAD_PAGE_URL: 'https://voicelab.uz/upload' });
+    const config = loadAppsConfig({ MCP_ENABLE_UPLOAD_SESSIONS: '1', UPLOAD_PAGE_URL: 'https://voicelab.uz/upload' });
     const content: any = readResourceResult(config, UPLOAD_RESOURCE_URI).contents[0];
     assert.deepStrictEqual(content._meta['openai/widgetCSP'].redirect_domains, ['https://voicelab.uz']);
   });
@@ -117,7 +132,10 @@ describe('loadAppsConfig', () => {
     assert.strictEqual(c.uploadPageUrl, undefined);
     assert.strictEqual(c.widgetDomain, 'https://mcp.voicelab.uz');
     assert.strictEqual(c.spike, undefined);
+    assert.strictEqual(c.uploadSessions, false);
     assert.ok(c.warnings.length >= 1);
+    assert.strictEqual(loadAppsConfig({ MCP_ENABLE_UPLOAD_SESSIONS: '1' }).uploadSessions, true);
+    assert.strictEqual(loadAppsConfig({ MCP_ENABLE_UPLOAD_SESSIONS: 'true' }).uploadSessions, false);
   });
 
   it('rejects an upload page URL with a fragment', () => {

@@ -246,12 +246,15 @@ describe('meetingTools annotations', () => {
     assert.strictEqual(byName.delete_meeting.annotations?.openWorldHint, true);
   });
 
-  it('accepts three exclusive audio sources on create (none required) and meeting_id on resource tools', () => {
+  it('accepts exclusive audio sources on create (none required) and meeting_id on resource tools', () => {
     assert.strictEqual(byName.create_meeting.inputSchema.required, undefined);
     const props = Object.keys(byName.create_meeting.inputSchema.properties || {});
-    for (const key of ['upload_id', 'audio_url', 'audio_base64', 'title', 'language', 'filename', 'idempotency_key']) {
+    for (const key of ['audio_url', 'audio_base64', 'title', 'language', 'filename', 'idempotency_key']) {
       assert.ok(props.includes(key), key);
     }
+    // Base descriptor = upload sessions off; tools.ts adds upload_id when enabled.
+    assert.ok(!props.includes('upload_id'));
+    assert.ok(!/upload_id|upload_audio/.test(byName.create_meeting.description || ''));
     assert.ok(!('oneOf' in byName.create_meeting.inputSchema));
     assert.deepStrictEqual((byName.create_meeting._meta as any)?.ui?.visibility, ['model', 'app']);
     assert.match(byName.create_meeting.description || '', /7 MB/);

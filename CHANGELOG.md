@@ -117,6 +117,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **`MCP_ENABLE_UPLOAD_SESSIONS`** (default off): backend `/v1/uploads` is not deployed yet, so everything that depends on upload sessions is hidden unless set to `1` — `upload_audio`, `create_upload_session`, `get_upload`, the `ui://voicelab/upload` resource (list + read), and the `upload_id` property on `create_meeting` / `speech_to_text` (when off, `upload_id` is rejected with `invalid_audio_source`). `audio_url`, `audio_base64`, and the ChatGPT file tools are always on
 - **MCP Apps upload view** (spec 2026-01-26): `capabilities.resources`, `resources/list`, `resources/read`, and `resources/templates/list`; `ui://voicelab/upload` served as `text/html;profile=mcp-app` with CSP `connectDomains` = API origin (plus `openai/widgetCSP`, `openai/widgetDomain`, `openai/widgetDescription` aliases). Unknown resources return `-32002`
 - **Upload sessions** (`src/uploads.ts`): `POST /v1/uploads`, `GET /v1/uploads/{id}`
   - `upload_audio` — creates a session and opens the upload widget; the single-use `upload_token` is returned only in result `_meta["voicelab/upload"]`
@@ -128,7 +129,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `create_meeting` and `speech_to_text` accept exactly one of `upload_id`, `audio_url`, or `audio_base64` (no longer requires `audio_base64`; `speech_to_text` still requires `language`). Descriptions document the ~7 MB base64 limit (10 MiB MCP body cap)
+- `create_meeting` and `speech_to_text` accept exactly one of `audio_url` or `audio_base64` (plus `upload_id` with `MCP_ENABLE_UPLOAD_SESSIONS=1`); `audio_base64` is no longer required; `speech_to_text` still requires `language`. Descriptions document the ~7 MB base64 limit (10 MiB MCP body cap)
 - `MeetingsModule.createMeeting` / `STTModule.transcribeAudio` take an `AudioSource` (`file` | `url` | `upload`); bare `Blob` still accepted
 - `tools/list` merges per-tool `_meta` (e.g. `_meta.ui`) instead of overwriting it
 - Server construction moved to `src/server.ts`
@@ -136,7 +137,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Technical
 
-- Total tools: 33 → 38 (39 with `upload_spike`/`upload_spike_done` when the spike is enabled)
+- Total tools: 33 → 35 by default; 38 with `MCP_ENABLE_UPLOAD_SESSIONS=1`; +2 (`upload_spike`, `upload_spike_done`) with the spike enabled
 - Voice isolation tools unchanged (`audio_base64` only)
 - No new runtime dependencies
 

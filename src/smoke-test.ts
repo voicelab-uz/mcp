@@ -88,14 +88,14 @@ const expectedTools = [
   'delete_meeting',
   'regenerate_meeting_notes',
   'get_meeting_translations',
-  'upload_audio',
-  'create_upload_session',
-  'get_upload',
   'create_meeting_from_file',
   'transcribe_file',
 ];
 
-console.log(`✓ Expected ${expectedTools.length} tools defined (plus get_profile = ${expectedTools.length + 1} total; spike tools only with MCP_ENABLE_SPIKE=1)\n`);
+// Only listed with MCP_ENABLE_UPLOAD_SESSIONS=1 (backend /v1/uploads not deployed yet).
+const uploadSessionTools = ['upload_audio', 'create_upload_session', 'get_upload'];
+
+console.log(`✓ Expected ${expectedTools.length} tools defined (plus get_profile = ${expectedTools.length + 1} total; +${uploadSessionTools.length} with MCP_ENABLE_UPLOAD_SESSIONS=1; spike tools only with MCP_ENABLE_SPIKE=1)\n`);
 
 // Test 5: Verify modules can be imported
 try {
@@ -159,11 +159,28 @@ try {
     console.error('❌ Spike tools must not be listed without MCP_ENABLE_SPIKE=1');
     process.exit(1);
   }
-  console.log(`✓ All ${listed.length} tools listed; spike tools hidden by default`);
+  if (uploadSessionTools.some((name) => listed.includes(name))) {
+    console.error('❌ Upload-session tools must not be listed without MCP_ENABLE_UPLOAD_SESSIONS=1');
+    process.exit(1);
+  }
+  console.log(`✓ All ${listed.length} tools listed; upload-session and spike tools hidden by default`);
+
+  const uploadsConfig = loadAppsConfig({ MCP_ENABLE_UPLOAD_SESSIONS: '1' });
+  const listedWithUploads = listTools({ apps: uploadsConfig }).map((tool) => tool.name);
+  const missingUploadTools = uploadSessionTools.filter((name) => !listedWithUploads.includes(name));
+  if (missingUploadTools.length > 0) {
+    console.error(`❌ Missing upload-session tools with MCP_ENABLE_UPLOAD_SESSIONS=1: ${missingUploadTools.join(', ')}`);
+    process.exit(1);
+  }
+  console.log(`✓ ${listedWithUploads.length} tools listed with MCP_ENABLE_UPLOAD_SESSIONS=1`);
 
   const { listResourcesResult, readResourceResult, UPLOAD_RESOURCE_URI, MCP_APP_MIME_TYPE } = await import('./resources.js');
-  const resourceUris = listResourcesResult(defaultConfig).resources.map((r) => r.uri);
-  const uploadView = readResourceResult(defaultConfig, UPLOAD_RESOURCE_URI).contents[0];
+  if (listResourcesResult(defaultConfig).resources.length !== 0) {
+    console.error('❌ No ui:// resources may be listed by default');
+    process.exit(1);
+  }
+  const resourceUris = listResourcesResult(uploadsConfig).resources.map((r) => r.uri);
+  const uploadView = readResourceResult(uploadsConfig, UPLOAD_RESOURCE_URI).contents[0];
   if (
     resourceUris.join(',') !== UPLOAD_RESOURCE_URI ||
     uploadView.mimeType !== MCP_APP_MIME_TYPE ||
@@ -172,7 +189,7 @@ try {
     console.error('❌ ui://voicelab/upload resource is missing or malformed');
     process.exit(1);
   }
-  console.log('✓ ui://voicelab/upload resource served as text/html;profile=mcp-app');
+  console.log('✓ ui://voicelab/upload served as text/html;profile=mcp-app only with MCP_ENABLE_UPLOAD_SESSIONS=1');
   
   console.log('\n✅ All smoke tests passed!');
   console.log('\nNote: To run the full server, set VOICELAB_API_KEY and run:');

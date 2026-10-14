@@ -110,7 +110,7 @@ export const fileParamTools: Tool[] = [
   {
     name: 'create_meeting_from_file',
     description:
-      'ChatGPT only: create a VoiceLab meeting (transcript + notes) from an audio file the user attached in ChatGPT. VoiceLab downloads the file directly; poll get_meeting with the returned meeting id until status is ready, transcribed, or failed. Other clients should use create_meeting or upload_audio.',
+      'ChatGPT only: create a VoiceLab meeting (transcript + notes) from an audio file the user attached in ChatGPT. VoiceLab downloads the file directly; poll get_meeting with the returned meeting id until status is ready, transcribed, or failed. Other clients should use create_meeting with audio_url or audio_base64.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -139,7 +139,7 @@ export const fileParamTools: Tool[] = [
   {
     name: 'transcribe_file',
     description:
-      'ChatGPT only: transcribe an audio file the user attached in ChatGPT with VoiceLab speech-to-text. VoiceLab downloads the file directly; poll get_transcription with the returned id until status is completed. Other clients should use speech_to_text or upload_audio.',
+      'ChatGPT only: transcribe an audio file the user attached in ChatGPT with VoiceLab speech-to-text. VoiceLab downloads the file directly; poll get_transcription with the returned id until status is completed. Other clients should use speech_to_text with audio_url or audio_base64.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,

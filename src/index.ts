@@ -303,6 +303,7 @@ async function startHttp(): Promise<void> {
   if (APPS_CONFIG.spike) {
     console.error(`MCP Apps spike: ENABLED (echo origin ${APPS_CONFIG.spike.echoOrigin}) — staging only`);
   }
+  console.error(`Upload sessions (MCP_ENABLE_UPLOAD_SESSIONS): ${APPS_CONFIG.uploadSessions ? 'enabled' : 'disabled'}`);
   console.error(`Browser upload page: ${APPS_CONFIG.uploadPageUrl ? 'configured' : 'not configured (audio_url fallback)'}`);
 
   if (ALLOWED_ORIGINS.length > 0) {

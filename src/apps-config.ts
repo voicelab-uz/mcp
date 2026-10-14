@@ -23,6 +23,12 @@ export interface AppsConfig {
   uploadPageUrl?: string;
   /** ChatGPT widget domain (openai/widgetDomain). */
   widgetDomain: string;
+  /**
+   * Upload sessions (POST /v1/uploads) are available on the backend. Gates upload_audio,
+   * create_upload_session, get_upload, ui://voicelab/upload and the upload_id source.
+   * MCP_ENABLE_UPLOAD_SESSIONS=1; default off.
+   */
+  uploadSessions: boolean;
   /** Phase 0 spike: present only when MCP_ENABLE_SPIKE=1 and SPIKE_ECHO_URL is a valid https URL. */
   spike?: SpikeConfig;
 }
@@ -83,7 +89,12 @@ export function loadAppsConfig(
     }
   }
 
-  return { apiOrigin, uploadPageUrl, widgetDomain, spike, warnings };
+  const uploadSessions = env.MCP_ENABLE_UPLOAD_SESSIONS === '1';
+  if (uploadPageUrl && !uploadSessions) {
+    warnings.push('UPLOAD_PAGE_URL has no effect while MCP_ENABLE_UPLOAD_SESSIONS is off');
+  }
+
+  return { apiOrigin, uploadPageUrl, widgetDomain, uploadSessions, spike, warnings };
 }
 
 /** Origin of a URL string, or undefined. */
