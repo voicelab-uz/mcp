@@ -558,3 +558,8 @@ Per the VoiceLab developer API contract, this MCP server does **not** expose:
 - Browser realtime streams (use `create_realtime_ticket` for WebSocket setup)
 
 Developer Meeting AI uses `/v1/meetings` with an API key (`meetings` Access). Dashboard routes at `/api/v1/meetings` require a user JWT and are not used here.
+
+## AI pull request review
+
+Changed files receive stack-specific security, readability, scalability, test and
+applicable UX feedback through AI&. See [setup, review labels and limits](docs/ai-pr-review.md).
