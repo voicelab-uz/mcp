@@ -17,6 +17,6 @@
     "sourceMap": true,
     "noEmit": false
   },
-  "include": ["src/worker.ts", "src/tools.ts", "src/client.ts", "src/llm.ts", "src/tts.ts", "src/stt.ts", "src/voices.ts", "src/isolator.ts", "src/realtime.ts", "src/version.ts"],
+  "include": ["src/worker.ts", "src/tools.ts", "src/client.ts", "src/llm.ts", "src/tts.ts", "src/stt.ts", "src/voices.ts", "src/isolator.ts", "src/realtime.ts", "src/meetings.ts", "src/version.ts"],
   "exclude": ["src/index.ts", "src/*.test.ts", "src/smoke-test.ts"]
 }

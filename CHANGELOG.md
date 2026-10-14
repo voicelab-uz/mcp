@@ -88,6 +88,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `VERSION_MANAGEMENT.md` explaining the version management architecture
 
+## [1.2.0] - 2026-10-14
+
+### Added
+
+- **Meeting AI Module** (`src/meetings.ts`): Developer API tools from https://docs.voicelab.uz/api/meetings
+  - `list_meeting_capabilities` — `GET /v1/meetings/capabilities` (read-only)
+  - `create_meeting` — `POST /v1/meetings` multipart `audio` + UUID `Idempotency-Key` (202)
+  - `list_meetings` — `GET /v1/meetings` with `limit`, `cursor`, or `ids`
+  - `get_meeting` — `GET /v1/meetings/{id}` (poll until `ready` / `transcribed` / `failed`)
+  - `rename_meeting` — `PATCH /v1/meetings/{id}` title-only body
+  - `delete_meeting` — `DELETE /v1/meetings/{id}` (destructive, 204)
+  - `regenerate_meeting_notes` — `POST /v1/meetings/{id}/notes/generations` (202)
+  - `get_meeting_translations` — `GET /v1/meetings/{id}/translations` (flagged: docs say translations are not available with API keys)
+
+### Documentation
+
+- Updated README and API_REFERENCE.md with Meeting AI tools and polling/idempotency notes
+- Total tools: 25 → 33 (including `get_profile`)
+
+### Technical
+
+- No changes to existing tools
+- Uses the existing REST client, per-user OAuth API key, and SSRF allowlist
+- Developer prefix `/v1/meetings` (docs); not dashboard `/api/v1/meetings`
+
 ## [Unreleased]
 
 ### Planned

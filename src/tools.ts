@@ -10,6 +10,7 @@ import { STTModule } from './stt.js';
 import { VoicesModule } from './voices.js';
 import { VoiceIsolatorModule } from './isolator.js';
 import { RealtimeModule } from './realtime.js';
+import { MeetingsModule, meetingTools } from './meetings.js';
 import { generateUUID, base64Encode, base64Decode } from './utils.js';
 import { type VerifiedOAuthUser, hasRequiredScope } from './oauth.js';
 
@@ -20,6 +21,7 @@ export interface Modules {
   voices: VoicesModule;
   isolator: VoiceIsolatorModule;
   realtime: RealtimeModule;
+  meetings: MeetingsModule;
 }
 
 const oauthSecurityScheme = {
@@ -495,7 +497,8 @@ const tools: Tool[] = [
       },
       required: ['service'],
     },
-  }
+  },
+  ...meetingTools,
 ];
 
 export function registerTools(
@@ -563,7 +566,7 @@ export async function handleToolCall(
   verifiedUser?: VerifiedOAuthUser | 'legacy'
 ) {
   const toolArgs = (args || {}) as Record<string, any>;
-  const { llm, tts, stt, voices, isolator, realtime } = modules;
+  const { llm, tts, stt, voices, isolator, realtime, meetings } = modules;
 
   // Handle get_profile (OpenAI profile tool)
   if (name === 'get_profile') {
@@ -862,6 +865,71 @@ export async function handleToolCall(
 
     case 'create_realtime_ticket': {
       const result = await realtime.createTicket(toolArgs.service as 'tts' | 'stt');
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+
+    case 'list_meeting_capabilities': {
+      const result = await meetings.getCapabilities();
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+
+    case 'create_meeting': {
+      const idempotencyKey = toolArgs.idempotency_key || generateUUID();
+      const audioBuffer = base64Decode(toolArgs.audio_base64 as string);
+      const filename = (toolArgs.filename as string | undefined) || 'meeting.audio';
+      const audio = new File([audioBuffer], filename);
+      const result = await meetings.createMeeting(audio, idempotencyKey, {
+        title: toolArgs.title as string | undefined,
+        language: toolArgs.language as string | undefined,
+        filename,
+      });
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              ...result,
+              idempotency_key: idempotencyKey,
+            }, null, 2),
+          },
+        ],
+      };
+    }
+
+    case 'list_meetings': {
+      const result = await meetings.listMeetings({
+        limit: toolArgs.limit as number | undefined,
+        cursor: toolArgs.cursor as string | undefined,
+        ids: toolArgs.ids as string | undefined,
+      });
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+
+    case 'get_meeting': {
+      const result = await meetings.getMeeting(toolArgs.meeting_id as string);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+
+    case 'rename_meeting': {
+      const result = await meetings.renameMeeting(
+        toolArgs.meeting_id as string,
+        toolArgs.title as string
+      );
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+
+    case 'delete_meeting': {
+      await meetings.deleteMeeting(toolArgs.meeting_id as string);
+      return { content: [{ type: 'text', text: 'Meeting deleted successfully' }] };
+    }
+
+    case 'regenerate_meeting_notes': {
+      const result = await meetings.regenerateNotes(toolArgs.meeting_id as string);
+      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+    }
+
+    case 'get_meeting_translations': {
+      const result = await meetings.getTranslations(toolArgs.meeting_id as string);
       return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
     }
 

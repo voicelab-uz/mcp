@@ -80,9 +80,17 @@ const expectedTools = [
   'get_isolation_export',
   'hide_isolation',
   'create_realtime_ticket',
+  'list_meeting_capabilities',
+  'create_meeting',
+  'list_meetings',
+  'get_meeting',
+  'rename_meeting',
+  'delete_meeting',
+  'regenerate_meeting_notes',
+  'get_meeting_translations',
 ];
 
-console.log(`✓ Expected ${expectedTools.length} tools defined (plus get_profile = 25 total)\n`);
+console.log(`✓ Expected ${expectedTools.length} tools defined (plus get_profile = 33 total)\n`);
 
 // Test 5: Verify modules can be imported
 try {
@@ -106,6 +114,24 @@ try {
   
   const { RealtimeModule } = await import('./realtime.js');
   console.log('✓ RealtimeModule imported');
+
+  const { MeetingsModule, meetingTools } = await import('./meetings.js');
+  console.log('✓ MeetingsModule imported');
+
+  const meetingToolNames = meetingTools.map((tool) => tool.name);
+  const missingMeetingTools = expectedTools.filter(
+    (name) => name.startsWith('list_meeting') || name.includes('meeting')
+  ).filter((name) => !meetingToolNames.includes(name));
+  if (missingMeetingTools.length > 0) {
+    console.error(`❌ Missing Meeting AI tools: ${missingMeetingTools.join(', ')}`);
+    process.exit(1);
+  }
+  const destructiveDeletes = meetingTools.filter((tool) => tool.name.startsWith('delete_'));
+  if (destructiveDeletes.some((tool) => tool.annotations?.destructiveHint !== true)) {
+    console.error('❌ delete_meeting must set destructiveHint: true');
+    process.exit(1);
+  }
+  console.log(`✓ Meeting AI tools registered (${meetingTools.length})`);
   
   console.log('\n✅ All smoke tests passed!');
   console.log('\nNote: To run the full server, set VOICELAB_API_KEY and run:');

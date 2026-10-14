@@ -1,6 +1,6 @@
 {
   "name": "@voicelab/mcp",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "Official VoiceLab MCP server - AI agent integration for speech AI APIs",
   "type": "module",
   "main": "dist/index.js",
@@ -24,7 +24,8 @@
     "dev": "wrangler dev",
     "deploy": "npm run build:worker && wrangler deploy",
     "deploy:staging": "npm run build:worker && wrangler deploy --env staging",
-    "test": "npm run build && node dist/smoke-test.js",
+    "test": "npm run build && node dist/smoke-test.js && npm run test:unit",
+    "test:unit": "npx --yes tsx --test src/client.test.ts src/meetings.test.ts",
     "test:e2e": "npm run build && node dist/e2e-test.js",
     "prepublishOnly": "npm run build"
   },
@@ -37,7 +38,9 @@
     "transcription",
     "ai",
     "llm",
-    "voice-isolation"
+    "voice-isolation",
+    "meeting-ai",
+    "meetings"
   ],
   "author": "Elzodxon Sharofaddinov <elzodxon@gmail.com>",
   "contributors": [

@@ -12,6 +12,7 @@ import { STTModule } from './stt.js';
 import { VoicesModule } from './voices.js';
 import { VoiceIsolatorModule } from './isolator.js';
 import { RealtimeModule } from './realtime.js';
+import { MeetingsModule } from './meetings.js';
 import { registerTools } from './tools.js';
 import { 
   type OAuthConfig, 
@@ -57,6 +58,7 @@ function createMcpServer(apiKey: string, verifiedUser?: VerifiedOAuthUser | 'leg
     voices: new VoicesModule(client),
     isolator: new VoiceIsolatorModule(client),
     realtime: new RealtimeModule(client),
+    meetings: new MeetingsModule(client),
   };
 
   const server = new Server(

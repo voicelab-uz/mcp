@@ -1,6 +1,6 @@
 # VoiceLab MCP Tools Quick Reference
 
-Complete list of all 22 tools available in the VoiceLab MCP server.
+Complete list of all 33 tools available in the VoiceLab MCP server.
 
 ## LLM Tools
 
@@ -252,14 +252,105 @@ Create a short-lived WebSocket ticket for realtime TTS or STT.
 
 ---
 
+## Meeting AI Tools
+
+Developer API prefix is `/v1/meetings` (API key with `meetings` Access). Dashboard `/api/v1/meetings` routes are JWT-only and are not used.
+
+### `list_meeting_capabilities`
+List supported recording languages and feature flags (`GET /v1/meetings/capabilities`).
+
+**Parameters:** None
+
+**Returns:** `data` array of `{ code, name, native_name }` (allow unknown fields)
+
+---
+
+### `create_meeting`
+Upload a meeting recording for asynchronous transcription and notes (`POST /v1/meetings`).
+
+**Parameters:**
+- `audio_base64` (required): Base64-encoded audio (MP3, WAV, M4A/AAC, OGG/Opus, WebM/Opus, FLAC; max 500 MiB)
+- `title` (optional): 1–160 characters, single line; defaults to filename
+- `language` (optional): `auto` or a capabilities code (default `auto`)
+- `filename` (optional): Multipart filename (used as default title)
+- `idempotency_key` (optional): UUID; auto-generated if omitted
+
+**Returns:** `202` envelope `{ meeting, async, request_id }` plus the idempotency key. Poll `get_meeting` until `status` is `ready`, `transcribed`, or `failed`.
+
+---
+
+### `list_meetings`
+List the account's meetings, newest first (`GET /v1/meetings`).
+
+**Parameters:**
+- `limit` (optional): Results per page (1–50, default 20)
+- `cursor` (optional): Opaque pagination cursor
+- `ids` (optional): Comma-separated list of up to 50 meeting IDs (sent instead of `cursor`)
+
+**Returns:** `{ meetings, next_cursor }`
+
+---
+
+### `get_meeting`
+Read meeting status, transcript, and notes (`GET /v1/meetings/{id}`).
+
+**Parameters:**
+- `meeting_id` (required): Meeting ID
+
+**Returns:** `{ meeting }` with transcript, notes, processing stages, and optional `failure`. Developer responses never include audio playback URLs.
+
+---
+
+### `rename_meeting`
+Change a meeting title (`PATCH /v1/meetings/{id}`).
+
+**Parameters:**
+- `meeting_id` (required): Meeting ID
+- `title` (required): New title (1–160 characters, single line)
+
+**Returns:** Updated `{ meeting }`
+
+---
+
+### `delete_meeting`
+Delete a meeting and its results (`DELETE /v1/meetings/{id}`). Destructive.
+
+**Parameters:**
+- `meeting_id` (required): Meeting ID to delete
+
+**Returns:** Confirmation message (`204 No Content` from the API)
+
+---
+
+### `regenerate_meeting_notes`
+Retry notes after a notes failure (`POST /v1/meetings/{id}/notes/generations`).
+
+**Parameters:**
+- `meeting_id` (required): Meeting ID whose `status` is `transcribed`
+
+**Returns:** `202` `{ meeting }`. Other statuses return `409 meeting_notes_not_retryable`. Billed again.
+
+---
+
+### `get_meeting_translations`
+Attempt to read meeting translations (`GET /v1/meetings/{id}/translations`).
+
+**Parameters:**
+- `meeting_id` (required): Meeting ID
+
+**Returns:** Raw JSON if the route accepts the API key. Docs state translations are not available with API keys; the dashboard uses JWT `/api/v1/meetings/{id}/translations`. Expect `403`/`404`.
+
+---
+
 ## Notes
 
 ### Idempotency
-STT, TTS, and Voice Isolator tools auto-generate UUIDs when `idempotency_key` is not provided. Retries with the same key and body return cached results without reprocessing.
+STT, TTS, Voice Isolator, and Meeting AI upload tools auto-generate UUIDs when `idempotency_key` is not provided. Retries with the same key and body return cached results without reprocessing.
 
 ### Async Operations
 - `speech_to_text`: Returns job ID immediately; poll `get_transcription` until `status: "completed"`
 - `isolate_voice`: Returns job ID immediately; poll `get_isolation` until `status: "completed"`
+- `create_meeting`: Returns `202` with `meeting`; poll `get_meeting` until `status` is `ready`, `transcribed`, or `failed`
 
 ### Audio Format
 - **Input**: Base64-encoded bytes of audio files
