@@ -234,11 +234,11 @@ describe('meetingTools annotations', () => {
     }
   });
 
-  it('marks writes non-readonly and only delete as destructive', () => {
+  it('marks writes non-readonly; rename and delete are destructive', () => {
     assert.strictEqual(byName.create_meeting.annotations?.readOnlyHint, false);
     assert.strictEqual(byName.create_meeting.annotations?.destructiveHint, false);
     assert.strictEqual(byName.rename_meeting.annotations?.readOnlyHint, false);
-    assert.strictEqual(byName.rename_meeting.annotations?.destructiveHint, false);
+    assert.strictEqual(byName.rename_meeting.annotations?.destructiveHint, true);
     assert.strictEqual(byName.regenerate_meeting_notes.annotations?.readOnlyHint, false);
     assert.strictEqual(byName.regenerate_meeting_notes.annotations?.destructiveHint, false);
     assert.strictEqual(byName.delete_meeting.annotations?.readOnlyHint, false);

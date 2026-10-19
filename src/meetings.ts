@@ -317,7 +317,7 @@ export const meetingTools: Tool[] = [
       'Change a meeting\'s title (PATCH /v1/meetings/{id}). Requires meetings:write. Send only title, 1–160 characters on one line. Unknown fields return 422 validation_error. Returns the updated meeting. Not charged.',
     annotations: {
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       openWorldHint: true,
     },
     inputSchema: {
