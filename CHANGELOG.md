@@ -141,6 +141,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Voice isolation tools unchanged (`audio_base64` only)
 - No new runtime dependencies
 
+## [1.3.1] - 2026-10-19
+
+### Changed
+
+- `rename_meeting` now sets `destructiveHint: true` (title overwrite is a hard-to-reverse change). Matches `update_transcription`. `readOnlyHint` remains false. `idempotentHint` is not used elsewhere in this repo, so it was not added.
+
 ## [Unreleased]
 
 ### Planned

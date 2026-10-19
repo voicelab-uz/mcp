@@ -136,6 +136,14 @@ try {
     console.error('❌ delete_meeting must set destructiveHint: true');
     process.exit(1);
   }
+  const renameMeeting = meetingTools.find((tool) => tool.name === 'rename_meeting');
+  if (
+    renameMeeting?.annotations?.destructiveHint !== true ||
+    renameMeeting.annotations.readOnlyHint !== false
+  ) {
+    console.error('❌ rename_meeting must set destructiveHint: true and readOnlyHint: false');
+    process.exit(1);
+  }
   console.log(`✓ Meeting AI tools registered (${meetingTools.length})`);
 
   // MCP Apps: capabilities.resources, tool list, and ui:// resource
