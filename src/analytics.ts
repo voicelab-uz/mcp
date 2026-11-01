@@ -86,7 +86,7 @@ const structuralFields = new Set([
   'include_words',
 ]);
 const secretValue =
-  /(?:vlk_|vlup_|ph[a-z]_|Bearer\s|eyJ[A-Za-z0-9_-]+\.|https?:\/\/|[^\s@]+@[^\s@]+\.[^\s@]+)/i;
+  /(?:vlk_|vlup_|ph[a-z]_|sk[-_]|rk[-_]|gh[pousr]_|github_pat_|xox[baprs]-|AKIA[0-9A-Z]{16}|AIza[A-Za-z0-9_-]{30,}|(?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|password|secret)[:=]|Bearer\s|eyJ[A-Za-z0-9_-]+\.|https?:\/\/|[^\s@]+@[^\s@]+\.[^\s@]+)/i;
 
 /** Keep useful bounded structure, options, counts and timings; never customer content. */
 export function sanitizeMcpPayload(value: unknown, field = '', depth = 0): unknown {

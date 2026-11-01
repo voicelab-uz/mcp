@@ -112,10 +112,10 @@ index 574b520..205d00b 100644
 +    "posthog-node": "5.61.1"
 diff --git a/src/analytics.test.ts b/src/analytics.test.ts
 new file mode 100644
-index 0000000..3dd657b
+index 0000000..461d360
 --- /dev/null
 +++ b/src/analytics.test.ts
-@@ -0,0 +1,200 @@
+@@ -0,0 +1,238 @@
 +import { test } from 'node:test';
 +import assert from 'node:assert/strict';
 +import { Client } from '@modelcontextprotocol/sdk/client/index.js';
@@ -316,9 +316,47 @@ index 0000000..3dd657b
 +  assert.doesNotMatch(JSON.stringify(first), /transport-token|raw-signed-handle/);
 +  assert.deepEqual(first?.properties.$mcp_listed_tool_names, ['speech_to_text', 'text_to_speech']);
 +});
++
++test('common provider credentials are redacted in metadata, parameters and JSON responses', async () => {
++  for (const credential of [
++    'sk_live_privateTokenValue',
++    'sk-proj-privateTokenValue',
++    'rk_live_privateTokenValue',
++    'ghp_privateTokenValue',
++    'gho_privateTokenValue',
++    'ghu_privateTokenValue',
++    'ghs_privateTokenValue',
++    'ghr_privateTokenValue',
++    'github_pat_privateTokenValue',
++    'xoxb-privateTokenValue',
++    'xoxp-privateTokenValue',
++    'token:privateTokenValue',
++  ]) {
++    const event = await sanitizeMcpEvent({
++      event: '$mcp_tool_call',
++      distinct_id: 'usr_safe',
++      timestamp: '2026-11-02T00:00:00Z',
++      type: 'capture',
++      properties: {
++        $mcp_llm_model: credential,
++        $mcp_client_name: credential,
++        $mcp_parameters: {
++          request: { method: 'tools/call', params: { arguments: { model: credential } } },
++        },
++        $mcp_response: {
++          content: [{ type: 'text', text: JSON.stringify({ model: credential, status: 'ready' }) }],
++        },
++      },
++    });
++    assert.equal(event?.properties.$mcp_llm_model, undefined);
++    assert.equal(event?.properties.$mcp_client_name, undefined);
++    assert.equal(JSON.stringify(event).includes(credential), false, credential);
++    assert.match(JSON.stringify(event), /ready/);
++  }
++});
 diff --git a/src/analytics.ts b/src/analytics.ts
 new file mode 100644
-index 0000000..67bcdb6
+index 0000000..1562927
 --- /dev/null
 +++ b/src/analytics.ts
 @@ -0,0 +1,275 @@
@@ -410,7 +448,7 @@ index 0000000..67bcdb6
 +  'include_words',
 +]);
 +const secretValue =
-+  /(?:vlk_|vlup_|ph[a-z]_|Bearer\s|eyJ[A-Za-z0-9_-]+\.|https?:\/\/|[^\s@]+@[^\s@]+\.[^\s@]+)/i;
++  /(?:vlk_|vlup_|ph[a-z]_|sk[-_]|rk[-_]|gh[pousr]_|github_pat_|xox[baprs]-|AKIA[0-9A-Z]{16}|AIza[A-Za-z0-9_-]{30,}|(?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|password|secret)[:=]|Bearer\s|eyJ[A-Za-z0-9_-]+\.|https?:\/\/|[^\s@]+@[^\s@]+\.[^\s@]+)/i;
 +
 +/** Keep useful bounded structure, options, counts and timings; never customer content. */
 +export function sanitizeMcpPayload(value: unknown, field = '', depth = 0): unknown {

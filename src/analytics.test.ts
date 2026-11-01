@@ -198,3 +198,41 @@ test('credentials, IP metadata and raw conversation handles never leave; session
   assert.doesNotMatch(JSON.stringify(first), /transport-token|raw-signed-handle/);
   assert.deepEqual(first?.properties.$mcp_listed_tool_names, ['speech_to_text', 'text_to_speech']);
 });
+
+test('common provider credentials are redacted in metadata, parameters and JSON responses', async () => {
+  for (const credential of [
+    'sk_live_privateTokenValue',
+    'sk-proj-privateTokenValue',
+    'rk_live_privateTokenValue',
+    'ghp_privateTokenValue',
+    'gho_privateTokenValue',
+    'ghu_privateTokenValue',
+    'ghs_privateTokenValue',
+    'ghr_privateTokenValue',
+    'github_pat_privateTokenValue',
+    'xoxb-privateTokenValue',
+    'xoxp-privateTokenValue',
+    'token:privateTokenValue',
+  ]) {
+    const event = await sanitizeMcpEvent({
+      event: '$mcp_tool_call',
+      distinct_id: 'usr_safe',
+      timestamp: '2026-11-02T00:00:00Z',
+      type: 'capture',
+      properties: {
+        $mcp_llm_model: credential,
+        $mcp_client_name: credential,
+        $mcp_parameters: {
+          request: { method: 'tools/call', params: { arguments: { model: credential } } },
+        },
+        $mcp_response: {
+          content: [{ type: 'text', text: JSON.stringify({ model: credential, status: 'ready' }) }],
+        },
+      },
+    });
+    assert.equal(event?.properties.$mcp_llm_model, undefined);
+    assert.equal(event?.properties.$mcp_client_name, undefined);
+    assert.equal(JSON.stringify(event).includes(credential), false, credential);
+    assert.match(JSON.stringify(event), /ready/);
+  }
+});
