@@ -24,8 +24,8 @@ flushes every 10 seconds or 20 events, and gets up to 5 seconds to flush on SIGT
 SIGINT or normal process exit. Product API credentials are not reused for analytics.
 
 The beta SDK is pinned to `@posthog/mcp` 0.25.0 and `posthog-node` 5.61.1.
-Its Node requirement is `^20.20.0 || >=22.22.0`. The observed 5090 runtime has
-Node 22.20.0 and must be upgraded to a supported Node version before activation.
+Its Node requirement is `^20.20.0 || >=22.22.0`. The original 5090 runtime has Node 22.20.0. The analytics release uses a dedicated,
+checksum-verified Node 22.23.4 under `/opt/mcp/runtimes`; global Node is unchanged.
 
 ## Captured data
 
@@ -67,20 +67,29 @@ Read-only inventory on 2026-11-02 found:
 - Environment file: `/opt/mcp/.env` (owner-only, aisha).
 - Live `src/index.ts` and `src/tools.ts` match repository commit `0c76aed`.
 
-Latest main has later MCP Apps changes. Do not replace the live installation with
-latest main merely to enable analytics. The separately prepared
-`scripts/5090-analytics.patch` applies only analytics to that verified baseline,
-and the companion manifest records the original source hashes. The candidate
-is compiled and tested separately from main.
+The source and executing binaries differ: disk TypeScript is old, but all 25
+executing JavaScript modules match a clean main (`3902a2b`) build. Rebuilding the
+old source would remove two existing file tools. The source-only
+`scripts/5090-analytics.patch` and its manifest are reconstruction/audit artifacts;
+**do not promote a whole build from that stale source**.
 
-The supplied `elzodxon` SSH account can inspect the runtime but cannot write
-`/opt/mcp`, read its owner-only `.env`, run sudo, or restart the aisha-owned
-service. No ownership, permission, authentication or live service changes were
-made. Activation requires the existing service-owner/admin deployment path.
+Use `scripts/prepare-5090-runtime.py` and `5090-runtime.manifest.json` for the actual
+runtime candidate. They verify every executing JavaScript baseline hash, preserve
+live compiled files, and stage matching main source. After building, exactly
+`dist/index.js` and `dist/server.js` change and `dist/analytics.js` is added;
+all 23 other existing JavaScript modules remain byte-identical. Tool parity checks
+compare all 35 original descriptors and argument schemas after removing only the
+SDK's added model/conversation arguments.
 
-Before activation, stage the scoped candidate, verify baseline hashes, install
-pinned dependencies under the service owner's permissions, use a supported Node
-runtime and set the analytics variables privately. Validate a synthetic tool call
+The ordinary `elzodxon` SSH account has no sudo rule. User-authorized root access
+was obtained through `su`, then separately authorized additive SSH keys provided
+key-based root access. The service continues to run as aisha. No sshd policy or
+global Node settings were changed. Temporary password/ASKPASS files were deleted
+once key access was verified.
+
+For future releases, stage the runtime candidate, verify executing baseline
+hashes, install pinned dependencies under the service owner's permissions, use a
+supported dedicated Node runtime and set analytics variables privately. Validate a synthetic tool call
 in a staging/test project first. During authorized promotion retain the old build,
 Node path and environment for rollback. Restart only the MCP service and check
 health, OAuth negotiation, tools/list and safe read-only calls. Reconcile a
@@ -107,14 +116,18 @@ References:
 These are actions for the existing service owner/admin; they were not executed.
 Do not change global Node or any other service.
 
-1. Verify the bundle SHA256, then run `prepare-5090-analytics.py --stage <fresh-path>`
-   against `/opt/mcp`. It refuses source/package drift and copies no credentials.
+1. Verify the bundle SHA256, then run `prepare-5090-runtime.py --source-archive
+<matching-source.tar.gz> --stage <fresh-path>` against `/opt/mcp`. It refuses
+   executing-binary drift and copies no credentials. Never build from the stale
+   disk TypeScript source without first restoring source matching the runtime.
 2. Provision a supported, checksum-verified Node binary in a dedicated MCP-only
    directory such as `/opt/mcp/runtime-node/`. Keep `/usr/local/bin/node` intact.
 3. In an aisha-owned release directory, combine the staged patched source with
    the existing unchanged application files. Run `npm ci`, `npm run build` and
-   `npm run test:unit` using that dedicated Node. The prepared candidate uses only
-   the baseline's tests plus the new analytics tests. Do not deploy latest main.
+   `npm run test:unit` using that dedicated Node. Compare every original runtime
+   hash: only index/server may differ, with analytics added. Latest-main source
+   is appropriate only after its clean build is proven to match the actual
+   executing baseline; source filenames/version strings alone are insufficient.
 4. Privately create `/opt/mcp/posthog.env`, owner aisha and mode 0600, with the
    four analytics variables above. Preserve `/opt/mcp/.env` unchanged. First point
    at an isolated test project while testing a staged loopback-only MCP process;
@@ -133,6 +146,7 @@ Do not change global Node or any other service.
 
    The original unit's `/opt/mcp/.env` remains loaded; the additional file contains
    only PostHog settings. Check the resolved unit before restart.
+
 6. During the authorized MCP release window, reload systemd and restart only
    `voicelab-mcp.service`. Check local/public health, OAuth, tool discovery, a safe
    synthetic success and an intentional validation error. Verify corresponding
@@ -142,7 +156,22 @@ Do not change global Node or any other service.
    Node and old dependency tree were not overwritten, rollback uses the original
    executable. Recheck health/OAuth and leave analytics disabled until corrected.
 
-The compiled bundle contains platform-independent JavaScript for the three
-changed modules only, plus source patch/manifest. It contains no Node executable,
+The compiled bundle contains platform-independent JavaScript for index/server
+and new analytics only, plus baseline manifests, source and runbook. It contains no Node executable,
 node_modules, `.env`, API credentials or customer data. Dependency installation
 and supported Node provisioning remain explicit operator steps.
+
+## Verified production release
+
+On 2026-11-02 (Asia/Tashkent), analytics build `132049b` was promoted to
+`/opt/mcp/releases/posthog-132049b-runtime` using MCP-only drop-in
+`/etc/systemd/system/voicelab-mcp.service.d/90-posthog-analytics.conf`.
+`/opt/mcp/posthog.env` is aisha-owned 0600 and loaded in addition to the unchanged
+original environment. The old dist/dependencies/global Node remain intact.
+
+Local and 5090 matching-runtime builds pass 79 unit tests. Controlled loopback and
+production success/error probes pass, all 35 original tool definitions remain
+compatible, and public/local health is healthy. Root-only rollback material is
+under `/root/mcp-analytics-rollback-132049b`; remove only the new MCP drop-in and
+restart that service to restore the original executable paths. No customer
+inference or paid operation was executed by the deployment probes.
