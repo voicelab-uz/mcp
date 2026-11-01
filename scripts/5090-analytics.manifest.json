@@ -1,0 +1,12 @@
+{
+  "target": "31.40.29.33",
+  "service": "voicelab-mcp.service",
+  "runtime_root": "/opt/mcp",
+  "source_baseline": "0c76aed",
+  "baseline_sha256": {
+    "src/index.ts": "31991adeab6ae0e787ec0effccd88dd80284e3499acd921562ab6246f2482a4c",
+    "src/tools.ts": "d5ec954d12340e93439592a456094762aac0f8e944329e392a16f0d239dc8c49",
+    "package.json": "8a83e3cb2046a2120bb32dad0077fee4f7b724fb77b74cd0286d08fd4099180a",
+    "package-lock.json": "0d4c39c073e1129f440e8e32d6d1bdee5f115b1e31879ef23d7c25b391f67330"
+  }
+}

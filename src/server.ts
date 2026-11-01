@@ -8,7 +8,8 @@ import { VoiceIsolatorModule } from './isolator.js';
 import { RealtimeModule } from './realtime.js';
 import { MeetingsModule } from './meetings.js';
 import { UploadsModule } from './uploads.js';
-import { registerTools } from './tools.js';
+import { registerTools, listTools } from './tools.js';
+import type { McpAnalyticsRuntime } from './analytics.js';
 import { registerResources } from './resources.js';
 import { type AppsConfig } from './apps-config.js';
 import { type VerifiedOAuthUser } from './oauth.js';
@@ -25,6 +26,7 @@ export interface CreateServerOptions {
   baseUrl: string;
   apps: AppsConfig;
   verifiedUser?: VerifiedOAuthUser | 'legacy';
+  analytics?: McpAnalyticsRuntime;
 }
 
 /**
@@ -55,5 +57,6 @@ export function createMcpServer(options: CreateServerOptions): Server {
   );
   registerTools(server, modules, options.verifiedUser, { apps: options.apps });
   registerResources(server, options.apps);
+  options.analytics?.attach(server, listTools({ apps: options.apps }), options.verifiedUser);
   return server;
 }

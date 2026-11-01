@@ -15,6 +15,24 @@ import {
   verifyRequest,
 } from './oauth.js';
 import { VERSION } from './version.js';
+import { createMcpAnalytics } from './analytics.js';
+
+const MCP_ANALYTICS = createMcpAnalytics(process.env);
+let shuttingDown = false;
+for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+  process.once(signal, () => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    void (MCP_ANALYTICS?.shutdown() ?? Promise.resolve()).catch(() => undefined).finally(() => process.exit(0));
+  });
+}
+
+process.once('beforeExit', () => {
+  if (!shuttingDown) {
+    shuttingDown = true;
+    void MCP_ANALYTICS?.shutdown().catch(() => undefined);
+  }
+});
 
 const FALLBACK_API_KEY = process.env.VOICELAB_API_KEY;
 const BASE_URL = process.env.VOICELAB_BASE_URL || 'https://api.voicelab.uz';
@@ -49,7 +67,7 @@ if (!FALLBACK_API_KEY && !OAUTH_ISSUER) {
  * @param verifiedUser - OAuth user info (for profile tool)
  */
 function createMcpServer(apiKey: string, verifiedUser?: VerifiedOAuthUser | 'legacy'): Server {
-  return buildMcpServer({ apiKey, baseUrl: BASE_URL, apps: APPS_CONFIG, verifiedUser });
+  return buildMcpServer({ apiKey, baseUrl: BASE_URL, apps: APPS_CONFIG, verifiedUser, analytics: MCP_ANALYTICS });
 }
 
 function getOAuthConfig(): OAuthConfig {

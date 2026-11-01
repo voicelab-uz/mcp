@@ -1,0 +1,636 @@
+diff --git a/package-lock.json b/package-lock.json
+index 860648c..ecace52 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -13 +13,3 @@
+-        "hono": "^4.13.11"
++        "@posthog/mcp": "0.25.0",
++        "hono": "^4.13.11",
++        "posthog-node": "5.61.1"
+@@ -25 +27 @@
+-        "node": ">=20.0.0"
++        "node": "^20.20.0 || >=22.22.0"
+@@ -147 +149,2 @@
+-      "license": "MIT OR Apache-2.0"
++      "license": "MIT OR Apache-2.0",
++      "peer": true
+@@ -1005,0 +1009 @@
++      "peer": true,
+@@ -1040,0 +1045,40 @@
++    "node_modules/@posthog/core": {
++      "version": "1.62.0",
++      "resolved": "https://registry.npmjs.org/@posthog/core/-/core-1.62.0.tgz",
++      "integrity": "sha512-KjNwGC7s0141wnWWHubNMdg1lOhZjqKRw2OTNstuzdVvNDfvv2RbFJQSSvvABmbCmTXwlMpdnbb/M/aAigDnNQ==",
++      "license": "MIT",
++      "dependencies": {
++        "@posthog/types": "^1.418.0"
++      }
++    },
++    "node_modules/@posthog/mcp": {
++      "version": "0.25.0",
++      "resolved": "https://registry.npmjs.org/@posthog/mcp/-/mcp-0.25.0.tgz",
++      "integrity": "sha512-YV4J09e4eEyibDcS6D7BCCaDMfojkPiMWoZLoXCg3LECgAyyN3esOX4ROT4vquBiFJGz/Tugf3o0jBKZJf6pgA==",
++      "license": "MIT",
++      "dependencies": {
++        "@posthog/core": "^1.61.1"
++      },
++      "engines": {
++        "node": "^20.20.0 || >=22.22.0"
++      },
++      "peerDependencies": {
++        "@modelcontextprotocol/sdk": ">=1.26.0",
++        "@modelcontextprotocol/server": ">=2.0.0",
++        "posthog-node": "^5.0.0"
++      },
++      "peerDependenciesMeta": {
++        "@modelcontextprotocol/sdk": {
++          "optional": true
++        },
++        "@modelcontextprotocol/server": {
++          "optional": true
++        }
++      }
++    },
++    "node_modules/@posthog/types": {
++      "version": "1.419.0",
++      "resolved": "https://registry.npmjs.org/@posthog/types/-/types-1.419.0.tgz",
++      "integrity": "sha512-XX7zRYt/vK8AzaD6V+oDquAzacZf5exJv971dja9En8Qf6g84Qvc3rpT0w6hDYYLWrjaSSkdjFfvvoXI0ouJDg==",
++      "license": "MIT"
++    },
+@@ -1448,0 +1493 @@
++      "peer": true,
+@@ -1553,0 +1599 @@
++      "peer": true,
+@@ -1798,0 +1845 @@
++      "peer": true,
+@@ -2159,0 +2207,25 @@
++    "node_modules/posthog-node": {
++      "version": "5.61.1",
++      "resolved": "https://registry.npmjs.org/posthog-node/-/posthog-node-5.61.1.tgz",
++      "integrity": "sha512-Az2H3hHyxxZ5PQpQAQEoJfa9FrLsM4OnuyIQwzi9hei5mtN0/mepw1yvLtAmPAbEkC6+muWXiBShBnVMKeBSXw==",
++      "license": "MIT",
++      "peer": true,
++      "dependencies": {
++        "@posthog/core": "^1.62.0"
++      },
++      "engines": {
++        "node": "^20.20.0 || >=22.22.0"
++      },
++      "peerDependencies": {
++        "@opentelemetry/api": "^1.2.0",
++        "rxjs": "^7.0.0"
++      },
++      "peerDependenciesMeta": {
++        "@opentelemetry/api": {
++          "optional": true
++        },
++        "rxjs": {
++          "optional": true
++        }
++      }
++    },
+@@ -2645,0 +2718 @@
++      "peer": true,
+@@ -2693,0 +2767 @@
++      "peer": true,
+@@ -2797,0 +2872 @@
++      "peer": true,
+diff --git a/package.json b/package.json
+index 574b520..205d00b 100644
+--- a/package.json
++++ b/package.json
+@@ -28 +28 @@
+-    "test:unit": "npx --yes tsx --test src/client.test.ts src/meetings.test.ts src/tools.test.ts src/resources.test.ts src/uploads.test.ts",
++    "test:unit": "npx --yes tsx --test src/client.test.ts src/meetings.test.ts src/analytics.test.ts",
+@@ -51 +51 @@
+-    "node": ">=20.0.0"
++    "node": "^20.20.0 || >=22.22.0"
+@@ -55 +55,3 @@
+-    "hono": "^4.13.11"
++    "hono": "^4.13.11",
++    "@posthog/mcp": "0.25.0",
++    "posthog-node": "5.61.1"
+diff --git a/src/analytics.test.ts b/src/analytics.test.ts
+new file mode 100644
+index 0000000..3dd657b
+--- /dev/null
++++ b/src/analytics.test.ts
+@@ -0,0 +1,200 @@
++import { test } from 'node:test';
++import assert from 'node:assert/strict';
++import { Client } from '@modelcontextprotocol/sdk/client/index.js';
++import { Server } from '@modelcontextprotocol/sdk/server/index.js';
++import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
++import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
++import { PostHog } from 'posthog-node';
++import {
++  createMcpAnalytics,
++  instrumentMcpServer,
++  sanitizeMcpEvent,
++  sanitizeMcpPayload,
++} from './analytics.js';
++
++const tool = {
++  name: 'speech_to_text',
++  description: 'Transcribe audio',
++  inputSchema: {
++    type: 'object' as const,
++    properties: { language: { type: 'string' }, audio_url: { type: 'string' } },
++  },
++};
++
++test('payloads keep bounded option/result structure and remove private content and dynamic keys', async () => {
++  const result = await sanitizeMcpEvent({
++    event: '$mcp_tool_call',
++    distinctId: 'usr_opaque',
++    properties: {
++      $mcp_source: 'posthog_mcp_analytics',
++      $mcp_tool_name: 'speech_to_text',
++      $mcp_duration_ms: 42,
++      $mcp_parameters: {
++        request: {
++          method: 'tools/call',
++          params: {
++            name: 'speech_to_text',
++            arguments: {
++              language: 'uz',
++              audio_url: 'https://secret.example/file?token=private',
++              text: '{"status":"private_prompt"}',
++              token: 'private-key',
++              'private-person@example.com': 'secret',
++            },
++          },
++        },
++      },
++      $mcp_response: {
++        content: [
++          {
++            type: 'text',
++            text: JSON.stringify({
++              status: 'completed',
++              duration_ms: 1500,
++              text: '{"status":"private_transcript"}',
++              email: 'person@example.com',
++              token: 'secret',
++            }),
++          },
++        ],
++      },
++      $mcp_error_message: 'private server response',
++      $mcp_intent: 'private user task',
++      $set: { email: 'person@example.com' },
++    },
++  });
++  const serialized = JSON.stringify(result);
++  assert.doesNotMatch(serialized, /private_|private-|person@example|secret\.example/);
++  assert.match(serialized, /completed/);
++  assert.match(serialized, /1500/);
++  assert.match(serialized, /"uz"/);
++  assert.equal(result?.properties?.$mcp_duration_ms, 42);
++  assert.equal(result?.properties?.$set, undefined);
++  assert.equal(
++    (sanitizeMcpPayload({ model: 'vlk_sensitive_token', stream: true }) as any).model,
++    '[redacted]'
++  );
++});
++
++test('analytics is opt-in and validates ingestion configuration without reading product credentials', () => {
++  assert.equal(createMcpAnalytics({}), undefined);
++  assert.throws(() => createMcpAnalytics({ POSTHOG_MCP_ENABLED: '1' }), /requires/);
++  assert.throws(
++    () =>
++      createMcpAnalytics({
++        POSTHOG_MCP_ENABLED: '1',
++        POSTHOG_PROJECT_TOKEN: 'phc_test',
++        POSTHOG_HOST: 'https://user:password@example.com/path',
++      }),
++    /origin/
++  );
++});
++
++test('real SDK wrapper captures success/errors without changing handler arguments or leaking result content', async () => {
++  const posthog = new PostHog('phc_test_only', { disabled: true });
++  const events: any[] = [];
++  posthog.capture = (event) => {
++    events.push(event);
++  };
++  const server = new Server(
++    { name: 'voicelab-mcp', version: 'test' },
++    { capabilities: { tools: {} } }
++  );
++  let received: unknown;
++  server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: [tool] }));
++  server.setRequestHandler(CallToolRequestSchema, async (request) => {
++    received = request.params.arguments;
++    return {
++      isError: request.params.arguments?.language === 'fail',
++      content: [
++        {
++          type: 'text',
++          text: JSON.stringify({
++            status: 'completed',
++            duration_ms: 80,
++            text: 'private customer transcript',
++          }),
++        },
++      ],
++    };
++  });
++  instrumentMcpServer(server, posthog, [tool], {
++    sub: 'usr_verified_account',
++    scopes: [],
++    voicelab_api_key: 'vlk_private_backend_key',
++  });
++  const client = new Client({ name: 'test-client', version: '1.0' }, { capabilities: {} });
++  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
++  await server.connect(serverTransport);
++  await client.connect(clientTransport);
++  try {
++    // Calls work on a fresh low-level server even without a preceding tools/list.
++    await client.callTool({
++      name: 'speech_to_text',
++      arguments: {
++        language: 'uz',
++        audio_url: 'https://example.com/private?token=secret',
++        llm_model: 'gpt-test',
++      },
++    });
++    assert.deepEqual(received, {
++      language: 'uz',
++      audio_url: 'https://example.com/private?token=secret',
++    });
++    await client.callTool({ name: 'speech_to_text', arguments: { language: 'fail' } });
++    await new Promise((resolve) => setTimeout(resolve, 25));
++    const calls = events.filter((event) => event.event === '$mcp_tool_call');
++    assert.equal(calls.length, 2);
++    assert.equal(calls[0].distinctId, 'usr_verified_account');
++    assert.equal(calls[0].properties.$mcp_is_error, false);
++    assert.equal(calls[1].properties.$mcp_is_error, true);
++    assert.equal(typeof calls[0].properties.$mcp_duration_ms, 'number');
++    assert.equal(calls[0].properties.$mcp_source, 'posthog_mcp_analytics');
++    assert.doesNotMatch(
++      JSON.stringify(events),
++      /private customer|vlk_private|https:\/\/example.com\/private|token=secret/
++    );
++  } finally {
++    await client.close();
++    await server.close();
++    await posthog.shutdown();
++  }
++});
++
++test('credentials, IP metadata and raw conversation handles never leave; session correlation remains stable', async () => {
++  for (const unsafe of [
++    'Bearer secret_token',
++    'eyJhbGciOiJIUzI1NiJ9.payload.signature',
++    'https://example.com/private?token=secret',
++    'person@example.com',
++    '192.168.1.10',
++    '12345678901',
++  ]) {
++    const event = await sanitizeMcpEvent({
++      event: '$mcp_tool_call',
++      distinct_id: 'usr_safe',
++      timestamp: '2026-11-02T00:00:00Z',
++      type: 'capture',
++      properties: { $mcp_llm_model: unsafe },
++    });
++    assert.equal(event?.properties.$mcp_llm_model, undefined, unsafe);
++  }
++  const properties = {
++    $session_id: 'transport-token-with-1234567890',
++    $mcp_conversation_id: 'raw-signed-handle',
++    $mcp_listed_tool_names: ['speech_to_text', 'text_to_speech'],
++  };
++  const base = {
++    event: '$mcp_tool_call',
++    distinct_id: 'usr_safe',
++    timestamp: '2026-11-02T00:00:00Z',
++    type: 'capture' as const,
++    properties,
++  };
++  const first = await sanitizeMcpEvent(base);
++  const second = await sanitizeMcpEvent(base);
++  assert.equal(first?.properties.$session_id, second?.properties.$session_id);
++  assert.match(first?.properties.$session_id as string, /^[a-f0-9-]{36}$/);
++  assert.doesNotMatch(JSON.stringify(first), /transport-token|raw-signed-handle/);
++  assert.deepEqual(first?.properties.$mcp_listed_tool_names, ['speech_to_text', 'text_to_speech']);
++});
+diff --git a/src/analytics.ts b/src/analytics.ts
+new file mode 100644
+index 0000000..67bcdb6
+--- /dev/null
++++ b/src/analytics.ts
+@@ -0,0 +1,275 @@
++import { createHash } from 'node:crypto';
++import { instrument, type BeforeSendFn } from '@posthog/mcp';
++import { PostHog } from 'posthog-node';
++import type { Server } from '@modelcontextprotocol/sdk/server/index.js';
++import type { Tool } from '@modelcontextprotocol/sdk/types.js';
++import type { VerifiedOAuthUser } from './oauth.js';
++
++const REDACTED = '[redacted]';
++const codeFields = new Set([
++  'model',
++  'model_id',
++  'language',
++  'format',
++  'output_format',
++  'status',
++  'code',
++  'error_code',
++  'type',
++  'kind',
++  'role',
++  'purpose',
++  'operation',
++  'mime_type',
++  'content_type',
++  'method',
++]);
++const numberFields = new Set([
++  'count',
++  'total',
++  'limit',
++  'offset',
++  'page',
++  'page_size',
++  'duration',
++  'duration_ms',
++  'duration_seconds',
++  'size',
++  'size_bytes',
++  'characters',
++  'credits',
++  'speed',
++  'sample_rate',
++  'channels',
++  'start',
++  'end',
++  'start_ms',
++  'end_ms',
++  'statusCode',
++  'status_code',
++  'max_tokens',
++  'temperature',
++  'top_p',
++  'input_tokens',
++  'output_tokens',
++  'total_tokens',
++  'index',
++]);
++const structuralFields = new Set([
++  'request',
++  'params',
++  'arguments',
++  'name',
++  'result',
++  'content',
++  'structuredContent',
++  'isError',
++  'error',
++  'data',
++  'items',
++  'models',
++  'voices',
++  'languages',
++  'segments',
++  'speakers',
++  'usage',
++  'pagination',
++  'processing',
++  'transcription',
++  'notes',
++  'audio',
++  'text',
++  'success',
++  'has_more',
++  'stream',
++  'include_speakers',
++  'include_words',
++]);
++const secretValue =
++  /(?:vlk_|vlup_|ph[a-z]_|Bearer\s|eyJ[A-Za-z0-9_-]+\.|https?:\/\/|[^\s@]+@[^\s@]+\.[^\s@]+)/i;
++
++/** Keep useful bounded structure, options, counts and timings; never customer content. */
++export function sanitizeMcpPayload(value: unknown, field = '', depth = 0): unknown {
++  if (depth > 8) return '[depth limited]';
++  if (value === null || value === undefined) return null;
++  if (typeof value === 'number')
++    return numberFields.has(field) && Number.isFinite(value) ? value : REDACTED;
++  if (typeof value === 'boolean') return value;
++  if (typeof value === 'string') {
++    if (field === 'text') return `[redacted text; ${value.length} chars]`;
++    return codeFields.has(field) &&
++      /^[a-zA-Z0-9][a-zA-Z0-9_.:/+-]{0,79}$/.test(value) &&
++      !secretValue.test(value)
++      ? value
++      : REDACTED;
++  }
++  if (Array.isArray(value))
++    return value.slice(0, 25).map((item) => sanitizeMcpPayload(item, field, depth + 1));
++  if (typeof value !== 'object') return REDACTED;
++  const result: Record<string, unknown> = {};
++  let omitted = 0;
++  for (const [key, item] of Object.entries(value).slice(0, 60)) {
++    if (!codeFields.has(key) && !numberFields.has(key) && !structuralFields.has(key)) {
++      omitted += 1;
++      continue;
++    }
++    // An unstructured content field is never recursively trusted merely because it has a familiar name.
++    result[key] = sanitizeMcpPayload(item, key, depth + 1);
++  }
++  if (omitted) result.redacted_fields = omitted;
++  return result;
++}
++
++function sanitizeResponse(value: unknown): unknown {
++  const sanitized = sanitizeMcpPayload(value);
++  if (!value || typeof value !== 'object' || !sanitized || typeof sanitized !== 'object')
++    return sanitized;
++  const content = (value as { content?: unknown }).content;
++  if (!Array.isArray(content)) return sanitized;
++  return {
++    ...sanitized,
++    content: content.slice(0, 25).map((block) => {
++      if (
++        !block ||
++        typeof block !== 'object' ||
++        block.type !== 'text' ||
++        typeof block.text !== 'string'
++      )
++        return sanitizeMcpPayload(block);
++      try {
++        return { type: 'text', text: JSON.stringify(sanitizeMcpPayload(JSON.parse(block.text))) };
++      } catch {
++        return { type: 'text', text: `[redacted text; ${block.text.length} chars]` };
++      }
++    }),
++  };
++}
++
++const safeMetadata = new Set([
++  '$mcp_source',
++  '$mcp_server_name',
++  '$mcp_server_version',
++  '$mcp_server_build',
++  '$mcp_sdk_version',
++  '$mcp_client_name',
++  '$mcp_client_version',
++  '$mcp_transport',
++  '$mcp_protocol_version',
++  '$mcp_tool_name',
++  '$mcp_duration_ms',
++  '$mcp_is_error',
++  '$mcp_error_type',
++  '$mcp_session_id',
++  '$session_id',
++  '$mcp_interface',
++  '$mcp_listed_tool_names',
++  '$mcp_llm_model',
++  '$mcp_llm_model_source',
++  '$mcp_intent_source',
++  '$process_person_profile',
++  '$mcp_input_keys',
++  '$mcp_input_key_count',
++]);
++
++export const sanitizeMcpEvent: BeforeSendFn = (event) => {
++  if (!event.event.startsWith('$mcp_')) return null;
++  const properties: Record<string, unknown> = {};
++  for (const [key, value] of Object.entries(event.properties ?? {})) {
++    if (key === '$mcp_parameters' || key === '$mcp_response') {
++      const payload = key === '$mcp_response' ? sanitizeResponse(value) : sanitizeMcpPayload(value);
++      properties[key] =
++        JSON.stringify(payload).length <= 20000 ? payload : { redacted_oversized_payload: true };
++    } else if (key === '$mcp_error_message') properties[key] = REDACTED;
++    else if (key === '$mcp_intent') properties[key] = REDACTED;
++    else if ((key === '$session_id' || key === '$mcp_session_id') && typeof value === 'string') {
++      // Retain correlation without exporting transport/session token material.
++      const hash = createHash('sha256')
++        .update('voicelab-mcp-session:' + value)
++        .digest('hex');
++      properties[key] =
++        `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
++    } else if (safeMetadata.has(key)) {
++      if (typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value)))
++        properties[key] = value;
++      else if (
++        typeof value === 'string' &&
++        /^[A-Za-z0-9_.:/+| -]{1,128}$/.test(value) &&
++        !secretValue.test(value) &&
++        !/\d{7}|\b\d{1,3}(?:\.\d{1,3}){3}\b/.test(value)
++      )
++        properties[key] = value;
++      else if (
++        (key === '$mcp_input_keys' || key === '$mcp_listed_tool_names') &&
++        Array.isArray(value)
++      )
++        properties[key] = value
++          .filter((item) => typeof item === 'string' && /^[a-z_][a-z0-9_]{0,63}$/.test(item))
++          .slice(0, 50);
++    }
++  }
++  return { ...event, properties };
++};
++
++export interface McpAnalyticsRuntime {
++  attach(server: Server, tools: Tool[], verifiedUser?: VerifiedOAuthUser | 'legacy'): void;
++  shutdown(): Promise<void>;
++}
++
++export function createMcpAnalytics(
++  env: Record<string, string | undefined>
++): McpAnalyticsRuntime | undefined {
++  if (env.POSTHOG_MCP_ENABLED !== '1') return undefined;
++  const token = env.POSTHOG_PROJECT_TOKEN?.trim();
++  const host = env.POSTHOG_HOST?.trim();
++  if (!token || !host)
++    throw new Error('MCP analytics requires POSTHOG_PROJECT_TOKEN and POSTHOG_HOST');
++  const url = new URL(host);
++  if (
++    url.protocol !== 'https:' ||
++    url.username ||
++    url.password ||
++    url.search ||
++    url.hash ||
++    url.pathname !== '/'
++  ) {
++    throw new Error('POSTHOG_HOST must be an HTTPS ingestion origin');
++  }
++  const client = new PostHog(token, {
++    host: url.origin,
++    flushAt: 20,
++    flushInterval: 10000,
++    maxQueueSize: 1000,
++    disableGeoip: true,
++    enableExceptionAutocapture: false,
++  });
++  return {
++    attach: (server, tools, verifiedUser) =>
++      instrumentMcpServer(server, client, tools, verifiedUser, env.POSTHOG_SERVER_BUILD),
++    shutdown: () => client.shutdown(5000),
++  };
++}
++
++export function instrumentMcpServer(
++  server: Server,
++  client: PostHog,
++  tools: Tool[],
++  verifiedUser?: VerifiedOAuthUser | 'legacy',
++  build?: string
++): void {
++  const registry = new Map(tools.map((tool) => [tool.name, tool]));
++  const subject = verifiedUser && verifiedUser !== 'legacy' ? verifiedUser.sub : undefined;
++  const identity =
++    subject && /^[A-Za-z0-9_|:-]{6,128}$/.test(subject) && !secretValue.test(subject)
++      ? { distinctId: subject }
++      : null;
++  instrument(server, client, {
++    ...(build && /^[a-f0-9]{7,64}$/.test(build) ? { serverBuild: build } : {}),
++    identify: identity,
++    context: false,
++    captureModel: true,
++    enableConversationId: true,
++    enableExceptionAutocapture: false,
++    resolveOriginalTool: (name) => registry.get(name),
++    beforeSend: sanitizeMcpEvent,
++  });
++}
+diff --git a/src/index.ts b/src/index.ts
+index 3c4f176..ef3377b 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -16 +16,2 @@ import { MeetingsModule } from './meetings.js';
+-import { registerTools } from './tools.js';
++import { registerTools, listTools } from './tools.js';
++import { createMcpAnalytics } from './analytics.js';
+@@ -25,0 +27,17 @@ import { VERSION } from './version.js';
++const MCP_ANALYTICS = createMcpAnalytics(process.env);
++let shuttingDown = false;
++for (const signal of ['SIGTERM', 'SIGINT'] as const) {
++  process.once(signal, () => {
++    if (shuttingDown) return;
++    shuttingDown = true;
++    void (MCP_ANALYTICS?.shutdown() ?? Promise.resolve()).catch(() => undefined).finally(() => process.exit(0));
++  });
++}
++
++process.once('beforeExit', () => {
++  if (!shuttingDown) {
++    shuttingDown = true;
++    void MCP_ANALYTICS?.shutdown().catch(() => undefined);
++  }
++});
++
+@@ -75,0 +94 @@ function createMcpServer(apiKey: string, verifiedUser?: VerifiedOAuthUser | 'leg
++  MCP_ANALYTICS?.attach(server, listTools(), verifiedUser);
+diff --git a/src/tools.ts b/src/tools.ts
+index 13bff70..631ea82 100644
+--- a/src/tools.ts
++++ b/src/tools.ts
+@@ -503,0 +504,4 @@ const tools: Tool[] = [
++export function listTools(): Tool[] {
++  return tools;
++}
++

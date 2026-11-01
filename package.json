@@ -25,7 +25,7 @@
     "deploy": "npm run build:worker && wrangler deploy",
     "deploy:staging": "npm run build:worker && wrangler deploy --env staging",
     "test": "npm run build && node dist/smoke-test.js && npm run test:unit",
-    "test:unit": "npx --yes tsx --test src/client.test.ts src/meetings.test.ts src/tools.test.ts src/resources.test.ts src/uploads.test.ts",
+    "test:unit": "npx --yes tsx --test src/client.test.ts src/meetings.test.ts src/tools.test.ts src/resources.test.ts src/uploads.test.ts src/analytics.test.ts",
     "test:e2e": "npm run build && node dist/e2e-test.js",
     "prepublishOnly": "npm run build"
   },
@@ -48,11 +48,13 @@
   ],
   "license": "MIT",
   "engines": {
-    "node": ">=20.0.0"
+    "node": "^20.20.0 || >=22.22.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.31.0",
-    "hono": "^4.13.11"
+    "@posthog/mcp": "0.25.0",
+    "hono": "^4.13.11",
+    "posthog-node": "5.61.1"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241218.0",
