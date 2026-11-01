@@ -175,3 +175,9 @@ compatible, and public/local health is healthy. Root-only rollback material is
 under `/root/mcp-analytics-rollback-132049b`; remove only the new MCP drop-in and
 restart that service to restore the original executable paths. No customer
 inference or paid operation was executed by the deployment probes.
+
+PostHog ingestion was verified directly in project 606234 after promotion for build
+`132049bbd0e5f449420b0cc7a05e71a717b6e661`: `$mcp_initialize` at
+2026-11-01 22:52:36.960 UTC, `get_profile` success at 22:52:36.984 UTC (2 ms),
+and the intentional `deployment_validation_unknown` error at 22:52:36.989 UTC
+(0 ms). These were controlled probes; no customer inference was executed.
