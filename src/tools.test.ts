@@ -8,6 +8,7 @@ import {
   withSecuritySchemes,
   titleFromFilename,
   buildBrowserUploadUrl,
+  serializeToolError,
   type Modules,
   type ToolsOptions,
 } from './tools.js';
@@ -18,6 +19,7 @@ import { loadAppsConfig } from './apps-config.js';
 import { createMcpServer } from './server.js';
 import { uuidV5 } from './utils.js';
 import { OPENAI_FILE_DEF } from './ingestion-tools.js';
+import { VoiceLabError } from './client.js';
 
 const UPLOAD_ID = 'upl_AbCdEfGhIjKlMnOpQrStUv';
 const TOKEN = 'vlup_secret_token_value_1234567890';
@@ -478,5 +480,76 @@ describe('tool list and _meta', () => {
     listTools({ apps: loadAppsConfig({ MCP_ENABLE_UPLOAD_SESSIONS: '1' }) });
     const off = Object.fromEntries(listTools().map((t) => [t.name, t]));
     assert.ok(!('upload_id' in (off.create_meeting.inputSchema.properties as object)));
+  });
+});
+
+describe('tool error authentication challenges', () => {
+  it('adds a sanitized relink challenge for upstream 401 errors', () => {
+    const secret = 'vlk_must_not_leak';
+    const result: any = serializeToolError(
+      new VoiceLabError(`invalid key ${secret}`, 'unauthenticated', 401, 'req_auth')
+    );
+
+    assert.strictEqual(result.isError, true);
+    assert.ok(Array.isArray(result._meta['mcp/www_authenticate']));
+    assert.match(result._meta['mcp/www_authenticate'][0], /error="invalid_token"/);
+    assert.match(result._meta['mcp/www_authenticate'][0], /oauth-protected-resource/);
+    assert.ok(!JSON.stringify(result).includes(secret));
+    assert.ok(!JSON.stringify(result).includes('req_auth'));
+  });
+
+  it('adds the challenge for an explicit invalid_api_key error', () => {
+    const result: any = serializeToolError(
+      new VoiceLabError('API key rejected', 'invalid_api_key', 403)
+    );
+
+    assert.strictEqual(result.isError, true);
+    assert.ok(result._meta?.['mcp/www_authenticate']);
+  });
+
+  it('falls back to the production metadata URL for invalid or non-HTTPS audiences', () => {
+    const previous = process.env.OAUTH_AUDIENCE;
+    try {
+      for (const audience of ['http://localhost:3100', 'not a URL']) {
+        process.env.OAUTH_AUDIENCE = audience;
+        const result: any = serializeToolError(
+          new VoiceLabError('API key rejected', 'unauthenticated', 401)
+        );
+        const challenge = result._meta['mcp/www_authenticate'][0];
+        assert.match(
+          challenge,
+          /resource_metadata="https:\/\/mcp\.voicelab\.uz\/\.well-known\/oauth-protected-resource"/
+        );
+        assert.ok(!challenge.includes(audience));
+      }
+    } finally {
+      if (previous === undefined) delete process.env.OAUTH_AUDIENCE;
+      else process.env.OAUTH_AUDIENCE = previous;
+    }
+  });
+
+  it('preserves normal upstream errors without an authentication challenge', () => {
+    const result: any = serializeToolError(
+      new VoiceLabError('Insufficient credits', 'insufficient_credits', 402, 'req_billing')
+    );
+
+    assert.strictEqual(result.isError, true);
+    assert.strictEqual(result._meta, undefined);
+    assert.deepStrictEqual(JSON.parse(result.content[0].text), {
+      error: 'Insufficient credits',
+      code: 'insufficient_credits',
+      statusCode: 402,
+    });
+  });
+
+  it('does not treat local errors with a statusCode field as upstream authentication failures', () => {
+    const local = Object.assign(new Error('Local validation failed'), {
+      code: 'unauthenticated',
+      statusCode: 401,
+    });
+    const result: any = serializeToolError(local);
+
+    assert.strictEqual(result._meta, undefined);
+    assert.strictEqual(JSON.parse(result.content[0].text).error, 'Local validation failed');
   });
 });

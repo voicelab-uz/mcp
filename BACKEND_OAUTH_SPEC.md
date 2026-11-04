@@ -191,6 +191,14 @@ grant_type=refresh_token
 &client_id={client_id}
 ```
 
+Refresh tokens are single-use and rotate on a successful refresh. Rotating a
+refresh token does **not** revoke an access token that was already issued from
+the same grant. Each access token, and the delegated `voicelab_api_key`
+embedded in it, remains valid until that token's own `exp` unless the user or
+an administrator explicitly revokes the connection. This bounded overlap is
+required because clients can have in-flight requests or cached access tokens
+while a refresh completes.
+
 **Security**:
 - Verify authorization code is valid and not expired
 - Verify code is bound to this `client_id` and `redirect_uri`
@@ -308,34 +316,31 @@ Access tokens must be JWTs with these claims:
 
 ## Per-User API Key Management
 
-### Key Minting on OAuth Consent
+### Key Minting on Authorization and Refresh
 
-When user approves OAuth consent:
+When the authorization server issues an access token from either an
+authorization code or a refresh token:
 
-1. **Check for existing API key**:
-   ```sql
-   SELECT api_key FROM user_api_keys WHERE user_id = ? AND scope = 'mcp_oauth';
-   ```
-
-2. **If no key exists, mint new one**:
+1. **Mint a delegated API key with the same expiry as the access JWT**:
    ```javascript
+   const expiresAt = issuedAt + ACCESS_TOKEN_TTL;
    const apiKey = `vlk_user_${userId}_${randomBytes(16).toString('hex')}`;
    await db.insert('user_api_keys', {
      user_id: userId,
      api_key: apiKey,
      scope: 'mcp_oauth',
      created_at: now(),
-     expires_at: null // Long-lived key
+     expires_at: expiresAt
    });
    ```
 
-3. **Include key in JWT**:
+2. **Include that key in the access JWT with the matching expiry**:
    ```javascript
    const accessToken = jwt.sign({
      iss: 'https://auth.voicelab.uz',
      sub: `voicelab|${userId}`,
      aud: 'https://mcp.voicelab.uz',
-     exp: Math.floor(Date.now() / 1000) + 86400, // 24h
+     exp: Math.floor(expiresAt / 1000),
      iat: Math.floor(Date.now() / 1000),
      scope: 'openid email mcp:tools',
      voicelab_api_key: apiKey,
@@ -344,6 +349,17 @@ When user approves OAuth consent:
      email_verified: user.emailVerified
    }, privateKey, { algorithm: 'RS256', keyid: 'voicelab-2026-01' });
    ```
+
+3. **Retain earlier delegated keys only until their own expiry**. A refresh or
+   second authorization may mint a replacement key, but it must not revoke a
+   key embedded in an access JWT whose `exp` is still in the future. Expired
+   delegated keys should be removed asynchronously.
+
+Do not model this as one active key per `(user_id, client_id)`. ChatGPT and
+Codex can reuse a stable client ID across connections, tabs, and workspaces,
+and valid access tokens from those connections can overlap. If connection-
+specific revocation is required, associate delegated keys and refresh tokens
+with a grant or refresh-token family identifier.
 
 ### Key Validation in VoiceLab API
 
@@ -364,13 +380,29 @@ if (apiKey.startsWith('vlk_user_')) {
 
 ### Key Revocation
 
-Users can revoke OAuth API keys in VoiceLab dashboard:
+Normal refresh-token rotation revokes only the consumed refresh token. It does
+not revoke delegated keys belonging to unexpired access JWTs.
+
+An explicit user or administrator revocation should revoke the selected grant
+family's refresh tokens and all delegated API keys immediately:
 
 ```javascript
-// Dashboard: revoke OAuth API key
-await db.query('DELETE FROM user_api_keys WHERE user_id = ? AND scope = "mcp_oauth"', [userId]);
-// Future OAuth access tokens will mint a new key
+// Dashboard: revoke one OAuth connection/grant family
+await db.transaction(async (tx) => {
+  await tx.query(
+    'UPDATE oauth_refresh_tokens SET revoked_at = ? WHERE grant_family_id = ? AND revoked_at IS NULL',
+    [now(), grantFamilyId]
+  );
+  await tx.query(
+    'UPDATE user_api_keys SET revoked_at = ? WHERE grant_family_id = ? AND revoked_at IS NULL',
+    [now(), grantFamilyId]
+  );
+});
 ```
+
+A user-wide "revoke all VoiceLab connections" action may revoke every grant
+family for that user. Reconnecting creates a new grant family and new bounded-
+lifetime delegated key; it must not silently reactivate a revoked family.
 
 ---
 
@@ -483,7 +515,10 @@ Implement RFC 7591 for OpenAI to auto-register:
 
 ### 1. Idempotency
 - Token endpoint: Same `code` + `code_verifier` returns same error (code already used)
-- Refresh token grant: Same `refresh_token` returns new access token (not idempotent by nature)
+- Refresh token grant: a rotating refresh token is single-use; concurrent reuse
+  yields one successful replacement and `invalid_grant` for the loser
+- A successful refresh does not invalidate already-issued access tokens or
+  their embedded delegated keys before their existing expiry
 
 ### 2. Statelessness
 - JWTs are self-contained (no session lookup on every API call)

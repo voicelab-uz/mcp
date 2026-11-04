@@ -17,6 +17,7 @@ import { type AppsConfig, DEFAULT_API_ORIGIN, DEFAULT_WIDGET_DOMAIN } from './ap
 import { uploadTools, fileParamTools, spikeTools } from './ingestion-tools.js';
 import { generateUUID, base64Encode, base64Decode, uuidV5 } from './utils.js';
 import { type VerifiedOAuthUser, hasRequiredScope } from './oauth.js';
+import { VoiceLabError } from './client.js';
 
 export interface Modules {
   llm: LLMModule;
@@ -37,6 +38,80 @@ export interface ToolsOptions {
 const DEFAULT_TOOLS_OPTIONS: ToolsOptions = {
   apps: { apiOrigin: DEFAULT_API_ORIGIN, widgetDomain: DEFAULT_WIDGET_DOMAIN, uploadSessions: false },
 };
+
+const DEFAULT_OAUTH_RESOURCE = 'https://mcp.voicelab.uz';
+
+function oauthResourceMetadataUrl(): string {
+  const configured = process.env.OAUTH_AUDIENCE || DEFAULT_OAUTH_RESOURCE;
+  try {
+    const audience = new URL(configured);
+    if (audience.protocol !== 'https:' || audience.username || audience.password) {
+      throw new Error('OAuth audience must be an HTTPS URL without credentials');
+    }
+    return new URL('/.well-known/oauth-protected-resource', audience).toString();
+  } catch {
+    return `${DEFAULT_OAUTH_RESOURCE}/.well-known/oauth-protected-resource`;
+  }
+}
+
+/**
+ * Convert thrown tool errors into MCP results. Upstream authentication failures
+ * receive a sanitized challenge so ChatGPT/Codex can relink the connection.
+ * Other upstream and local errors retain the existing response shape.
+ */
+export function serializeToolError(error: unknown) {
+  const upstream = error instanceof VoiceLabError ? error : undefined;
+  const isAuthenticationFailure = upstream !== undefined && (
+    upstream.statusCode === 401 ||
+    upstream.code === 'invalid_api_key' ||
+    upstream.code === 'unauthenticated'
+  );
+
+  if (isAuthenticationFailure) {
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify(
+            {
+              error: 'Authentication required',
+              code: 'unauthenticated',
+              statusCode: 401,
+              message: 'The VoiceLab connection is stale or expired. Reconnect VoiceLab and try again.',
+            },
+            null,
+            2
+          ),
+        },
+      ],
+      isError: true,
+      _meta: {
+        'mcp/www_authenticate': [
+          `Bearer resource_metadata="${oauthResourceMetadataUrl()}", error="invalid_token", error_description="VoiceLab credentials are stale or expired"`,
+        ],
+      },
+    };
+  }
+
+  const serialized = error as { message?: string; code?: string; statusCode?: number };
+  return {
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify(
+          {
+            error: serialized?.message,
+            code: serialized?.code,
+            statusCode: serialized?.statusCode,
+          },
+          null,
+          2
+        ),
+      },
+    ],
+    isError: true,
+  };
+}
 
 /** Thrown for invalid tool arguments; serialized like VoiceLab API errors. */
 export class ToolInputError extends Error {
@@ -814,23 +889,7 @@ export function registerTools(
         options
       );
     } catch (error: any) {
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(
-              {
-                error: error.message,
-                code: error.code,
-                statusCode: error.statusCode,
-              },
-              null,
-              2
-            ),
-          },
-        ],
-        isError: true,
-      };
+      return serializeToolError(error);
     }
   });
 }

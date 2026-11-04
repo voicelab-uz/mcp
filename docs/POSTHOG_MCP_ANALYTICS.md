@@ -125,7 +125,10 @@ Do not change global Node or any other service.
 3. In an aisha-owned release directory, combine the staged patched source with
    the existing unchanged application files. Run `npm ci`, `npm run build` and
    `npm run test:unit` using that dedicated Node. Compare every original runtime
-   hash: only index/server may differ, with analytics added. Latest-main source
+   hash: only index/server/tools may differ, with analytics added. Run
+   `python3 scripts/verify-5090-candidate.py --candidate <release-directory>`
+   after the build to verify every reviewed runtime hash and the exact module
+   allowlist. Latest-main source
    is appropriate only after its clean build is proven to match the actual
    executing baseline; source filenames/version strings alone are insufficient.
 4. Privately create `/opt/mcp/posthog.env`, owner aisha and mode 0600, with the
@@ -156,8 +159,9 @@ Do not change global Node or any other service.
    Node and old dependency tree were not overwritten, rollback uses the original
    executable. Recheck health/OAuth and leave analytics disabled until corrected.
 
-The compiled bundle contains platform-independent JavaScript for index/server
-and new analytics only, plus baseline manifests, source and runbook. It contains no Node executable,
+The compiled bundle contains platform-independent JavaScript for
+index/server/tools and new analytics only, plus baseline and candidate
+manifests, source and runbook. It contains no Node executable,
 node_modules, `.env`, API credentials or customer data. Dependency installation
 and supported Node provisioning remain explicit operator steps.
 

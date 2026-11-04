@@ -355,10 +355,20 @@ The MCP server verifies:
 
 ### Per-User API Key Security
 
-- ✅ API keys never leave VoiceLab backend (not logged, not exposed)
-- ✅ JWTs short-lived (24h recommended)
-- ✅ Keys bound to user accounts (VoiceLab backend enforces)
-- ✅ Users can revoke OAuth access from VoiceLab dashboard
+- Delegated API keys are carried inside signed access JWTs and must never be logged or returned by MCP tools.
+- The 24-hour access JWT has a bounded but material lifetime and contains a bearer secret; protect it accordingly rather than treating it as a strongly short-lived credential.
+- Each delegated key must be bound to its user and expire with the access JWT that contains it.
+- Refresh must rotate the refresh token without revoking keys in still-valid access JWTs.
+- Overlapping delegated keys must remain bounded by their JWT expiry and be cleaned up after expiry.
+- Grant-family tracking and connection-specific revocation are required follow-up work; they are not yet deployed.
+- Once grant-family tracking is implemented, an explicit disconnect or connection revocation must immediately revoke that family's refresh tokens and delegated keys.
+- A separate user-wide revocation action should revoke every grant family for the account.
+
+Do not keep only one active delegated key per user and OAuth `client_id`.
+ChatGPT and Codex may have overlapping connections or cached access tokens
+under the same stable client identity. If a refresh immediately revokes the
+prior embedded key, the old JWT can still pass signature and expiry checks but
+all API-backed tools will fail with `401 unauthenticated`.
 
 ### Rate Limiting
 
@@ -372,6 +382,8 @@ Monitor these metrics:
 - JWT verification failures (potential attack)
 - Missing `voicelab_api_key` claims (OAuth config issue)
 - Per-user API key extraction success rate
+- Delegated-key overlap count and expiry cleanup lag
+- Downstream `invalid_api_key` or `unauthenticated` responses for JWTs that have not expired
 
 ---
 
