@@ -36,7 +36,7 @@
       "features": ["noise_removal", "speech_restoration"]
     },
     "llm": {
-      "models": ["aisha-comet", "aisha-orbit", "aisha-halo"],
+      "models": ["aisha-comet", "aisha-orbit", "aisha-halo", "aisha-muon"],
       "features": ["chat_completion", "token_usage_tracking"]
     }
   },
