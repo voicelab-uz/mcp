@@ -139,7 +139,7 @@ export const fileParamTools: Tool[] = [
   {
     name: 'transcribe_file',
     description:
-      'ChatGPT only: transcribe an audio file the user attached in ChatGPT with VoiceLab speech-to-text. VoiceLab downloads the file directly; poll get_transcription with the returned id until status is completed. Other clients should use speech_to_text with audio_url or audio_base64.',
+      'Use this when a user asks VoiceLab to transcribe an audio file attached in ChatGPT. Pass the attached file directly; do not convert it to base64 or ask for a public URL. VoiceLab downloads the temporary file URL supplied by ChatGPT. Poll get_transcription with the returned id until status is completed. Other clients should use speech_to_text with audio_url or audio_base64.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,

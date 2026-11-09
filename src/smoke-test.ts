@@ -174,21 +174,22 @@ try {
   }
   console.log(`✓ ${listedWithUploads.length} tools listed with MCP_ENABLE_UPLOAD_SESSIONS=1`);
 
-  const { listResourcesResult, readResourceResult, UPLOAD_RESOURCE_URI, MCP_APP_MIME_TYPE } = await import('./resources.js');
-  if (listResourcesResult(defaultConfig).resources.length !== 0) {
-    console.error('❌ No ui:// resources may be listed by default');
+  const { listResourcesResult, readResourceResult, TTS_AUDIO_RESOURCE_URI, UPLOAD_RESOURCE_URI, MCP_APP_MIME_TYPE } = await import('./resources.js');
+  if (listResourcesResult(defaultConfig).resources.map((r) => r.uri).join(',') !== TTS_AUDIO_RESOURCE_URI) {
+    console.error('❌ TTS audio player must be the only default ui:// resource');
     process.exit(1);
   }
   const resourceUris = listResourcesResult(uploadsConfig).resources.map((r) => r.uri);
   const uploadView = readResourceResult(uploadsConfig, UPLOAD_RESOURCE_URI).contents[0];
   if (
-    resourceUris.join(',') !== UPLOAD_RESOURCE_URI ||
+    resourceUris.join(',') !== `${TTS_AUDIO_RESOURCE_URI},${UPLOAD_RESOURCE_URI}` ||
     uploadView.mimeType !== MCP_APP_MIME_TYPE ||
     !uploadView.text.includes('ui/initialize')
   ) {
     console.error('❌ ui://voicelab/upload resource is missing or malformed');
     process.exit(1);
   }
+  console.log('✓ ui://voicelab/tts-audio served by default');
   console.log('✓ ui://voicelab/upload served as text/html;profile=mcp-app only with MCP_ENABLE_UPLOAD_SESSIONS=1');
   
   console.log('\n✅ All smoke tests passed!');

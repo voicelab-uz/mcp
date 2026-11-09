@@ -18,6 +18,7 @@ import { uploadTools, fileParamTools, spikeTools } from './ingestion-tools.js';
 import { generateUUID, base64Encode, base64Decode, uuidV5 } from './utils.js';
 import { type VerifiedOAuthUser, hasRequiredScope } from './oauth.js';
 import { VoiceLabError } from './client.js';
+import { TTS_AUDIO_RESOURCE_URI } from './resources.js';
 
 export interface Modules {
   llm: LLMModule;
@@ -535,7 +536,7 @@ const tools: Tool[] = [
   },
   {
     name: 'get_tts_generation',
-    description: 'Get TTS generation details with audio URL',
+    description: 'Get a TTS generation and show its audio player. Signed audio URLs are temporary; use the player when available instead of copying or rewriting the URL into a Markdown link.',
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -547,6 +548,23 @@ const tools: Tool[] = [
         generation_id: { type: 'string', description: 'Generation ID' },
       },
       required: ['generation_id'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        audio_available: { type: 'boolean' },
+        audio_url: { type: 'string' },
+        audio_url_expires_at: { type: 'string' },
+      },
+      required: ['id', 'audio_available'],
+      additionalProperties: false,
+    },
+    _meta: {
+      ui: { resourceUri: TTS_AUDIO_RESOURCE_URI, visibility: ['model', 'app'] },
+      'openai/outputTemplate': TTS_AUDIO_RESOURCE_URI,
+      'openai/toolInvocation/invoking': 'Loading audio…',
+      'openai/toolInvocation/invoked': 'Audio ready',
     },
   },
   {
@@ -567,7 +585,7 @@ const tools: Tool[] = [
   },
   {
     name: 'speech_to_text',
-    description: 'Transcribe audio asynchronously. Provide exactly one audio source: audio_url (public HTTPS URL the API downloads; preferred for large files) or audio_base64 (small files only: the MCP request body is capped at 10 MiB, so base64 audio must be under ~7 MB). Returns 202 Accepted with job ID for polling (even for short clips). Poll get_transcription until status is completed. Generates unique idempotency key if not provided.',
+    description: 'Transcribe audio asynchronously. For a file attached in ChatGPT, use transcribe_file instead. Provide exactly one audio source: audio_url (public HTTPS URL the API downloads; preferred for large files) or audio_base64 (small files only: the MCP request body is capped at 10 MiB, so base64 audio must be under ~7 MB). Returns 202 Accepted with job ID for polling (even for short clips). Poll get_transcription until status is completed. Generates unique idempotency key if not provided.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -1059,7 +1077,15 @@ export async function handleToolCall(
 
     case 'get_tts_generation': {
       const result = await tts.getGeneration(toolArgs.generation_id as string);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        structuredContent: {
+          id: result.id,
+          audio_available: result.audio_available,
+          audio_url: result.audio_url,
+          audio_url_expires_at: result.audio_url_expires_at,
+        },
+      };
     }
 
     case 'delete_tts_generation': {

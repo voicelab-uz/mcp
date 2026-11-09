@@ -14,6 +14,7 @@ import {
 } from './tools.js';
 import { MeetingsModule } from './meetings.js';
 import { STTModule } from './stt.js';
+import { TTSModule } from './tts.js';
 import { UploadsModule } from './uploads.js';
 import { loadAppsConfig } from './apps-config.js';
 import { createMcpServer } from './server.js';
@@ -54,6 +55,7 @@ function setup(env: Record<string, string> = {}) {
   const modules = {
     meetings: new MeetingsModule(client as never),
     stt: new STTModule(client as never),
+    tts: new TTSModule(client as never),
     uploads: new UploadsModule(client as never),
   } as unknown as Modules;
   const options: ToolsOptions = { apps: loadAppsConfig(env) };
@@ -137,6 +139,21 @@ describe('resolveAudioSource', () => {
 
   it('rejects empty base64 payloads', () => {
     assert.throws(() => resolveAudioSource({ audio_base64: '====' }), /empty/);
+  });
+});
+
+describe('get_tts_generation player result', () => {
+  it('passes the backend signed URL through unchanged for the MCP App', async () => {
+    const { client, call } = setup();
+    const signedUrl = 'https://cdn.aisha.group/backend/voicelab/go/tts-audio/test.wav?X-Amz-Signature=a%2Bb%2Fc&x=a+b';
+    client.responses.push({
+      id: 'gen_test', audio_available: true, audio_url: signedUrl,
+      audio_url_expires_at: '2099-01-01T00:00:00Z',
+    });
+    const result: any = await call('get_tts_generation', { generation_id: 'gen_test' });
+    assert.strictEqual(client.calls[0].path, '/v1/tts/generations/gen_test');
+    assert.strictEqual(result.structuredContent.audio_url, signedUrl);
+    assert.strictEqual(JSON.parse(result.content[0].text).audio_url, signedUrl);
   });
 });
 
@@ -445,6 +462,9 @@ describe('tool list and _meta', () => {
       assert.ok(!/upload_audio/.test(byName[name].description));
     }
     assert.deepStrictEqual(byName.speech_to_text.inputSchema.required, ['language']);
+    assert.strictEqual(byName.get_tts_generation._meta.ui.resourceUri, 'ui://voicelab/tts-audio');
+    assert.strictEqual(byName.get_tts_generation._meta['openai/outputTemplate'], 'ui://voicelab/tts-audio');
+    assert.deepStrictEqual(byName.get_tts_generation.outputSchema.required, ['id', 'audio_available']);
     assert.strictEqual(byName.get_profile._meta['openai/profile'], true);
     assert.ok(!byName.get_profile.securitySchemes);
   });
