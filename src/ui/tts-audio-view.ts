@@ -1,7 +1,7 @@
 import { VERSION } from '../version.js';
 import { BASE_CSS, BRIDGE_JS, jsonForScript } from './bridge.js';
 
-/** Inline player for get_tts_generation. Signed URLs stay in memory only. */
+/** Inline player for TTS creation and generation detail. Signed URLs stay in memory only. */
 export const TTS_AUDIO_ORIGIN = 'https://cdn.aisha.group';
 const PLAYER_CSS = `
 audio { display: block; width: 100%; margin: 12px 0; }
@@ -14,7 +14,8 @@ const PLAYER_JS = `
 (function () {
   'use strict';
   var GENERATION_ID = /^gen_[A-Za-z0-9_-]{1,120}$/;
-  var state = { generationId: null, expiresAt: 0, refreshing: false, refreshedAfterError: false };
+  var state = { generationId: null, expiresAt: 0, refreshing: false, refreshedAfterError: false,
+    started: false, pollTimer: null, pollCount: 0, lastAppliedUrl: null };
   var audio = document.getElementById('audio');
   var status = document.getElementById('status');
   var refreshButton = document.getElementById('refresh');
@@ -49,6 +50,15 @@ const PLAYER_JS = `
     if (!detail) { setStatus('Audio details could not be read.', true); return; }
     state.generationId = detail.id;
     refreshButton.hidden = false;
+    if (detail.status === 'queued' || detail.status === 'processing') {
+      setStatus('Generating audio…', false);
+      schedulePoll();
+      return;
+    }
+    if (detail.status === 'failed') {
+      setStatus('Audio generation failed.', true);
+      return;
+    }
     if (detail.audio_available !== true) {
       audio.pause();
       audio.removeAttribute('src');
@@ -66,14 +76,35 @@ const PLAYER_JS = `
       return;
     }
     state.expiresAt = expiresAt;
+    state.pollCount = 0;
+    if (state.lastAppliedUrl === detail.audio_url) {
+      if (state.refreshedAfterError) setStatus('Playback failed. Try refreshing the audio link.', true);
+      else setStatus('Audio ready.', false);
+      return;
+    }
     // Use the backend's signed URL verbatim; never reconstruct its path or query.
     audio.setAttribute('src', detail.audio_url);
+    state.lastAppliedUrl = detail.audio_url;
     audio.load();
     setStatus('Audio ready.', false);
   }
 
+  function schedulePoll() {
+    if (state.pollTimer) return;
+    if (state.pollCount >= 60) {
+      setStatus('Audio is still processing. Use Refresh audio link to check again.', false);
+      return;
+    }
+    state.pollCount++;
+    state.pollTimer = setTimeout(function () {
+      state.pollTimer = null;
+      refreshAudio();
+    }, 3000);
+  }
+
   function refreshAudio() {
     if (state.refreshing || !state.generationId) return;
+    if (state.pollTimer) { clearTimeout(state.pollTimer); state.pollTimer = null; }
     state.refreshing = true;
     refreshButton.disabled = true;
     setStatus('Renewing audio link…', false);
@@ -90,25 +121,48 @@ const PLAYER_JS = `
     });
   }
 
+  function onToolResult(result) {
+    var output = result && result.structuredContent;
+    if (output && GENERATION_ID.test(output.generation_id)) {
+      if (state.started && state.generationId === output.generation_id) return;
+      state.generationId = output.generation_id;
+      state.started = true;
+      refreshButton.hidden = false;
+      setStatus('Loading generated audio…', false);
+      refreshAudio();
+      return;
+    }
+    if (output && output.status === 'completed' && !output.id) {
+      setStatus('Audio was generated, but its playback ID is unavailable.', true);
+      return;
+    }
+    applyResult(result);
+  }
+
   function readOpenAiGlobals() {
     var oa = window.openai;
     if (!oa) return;
     if (oa.toolInput && GENERATION_ID.test(oa.toolInput.generation_id)) {
       state.generationId = oa.toolInput.generation_id;
     }
-    if (oa.toolOutput) applyResult({ structuredContent: oa.toolOutput });
+    if (oa.toolOutput) onToolResult({ structuredContent: oa.toolOutput });
   }
 
   Bridge.on('ui/notifications/tool-input', function (params) {
     var id = params && params.arguments && params.arguments.generation_id;
     if (GENERATION_ID.test(id)) state.generationId = id;
   });
-  Bridge.on('ui/notifications/tool-result', applyResult);
+  Bridge.on('ui/notifications/tool-result', onToolResult);
   Bridge.on('ui/notifications/host-context-changed', Bridge.applyHostContext);
   Bridge.on('ui/notifications/tool-cancelled', function () { setStatus('Audio request cancelled.', true); });
-  Bridge.on('ui/resource-teardown', function () { audio.pause(); audio.removeAttribute('src'); });
+  Bridge.on('ui/resource-teardown', function () {
+    if (state.pollTimer) clearTimeout(state.pollTimer);
+    audio.pause(); audio.removeAttribute('src');
+  });
   window.addEventListener('openai:set_globals', readOpenAiGlobals);
-  refreshButton.addEventListener('click', function () { state.refreshedAfterError = false; refreshAudio(); });
+  refreshButton.addEventListener('click', function () {
+    state.refreshedAfterError = false; state.pollCount = 0; refreshAudio();
+  });
   audio.addEventListener('error', function () {
     if (state.refreshedAfterError) { setStatus('Playback failed. Try refreshing the audio link.', true); return; }
     state.refreshedAfterError = true;

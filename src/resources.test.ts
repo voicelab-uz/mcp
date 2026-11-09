@@ -106,16 +106,19 @@ describe('ui:// resources', () => {
     const status = { textContent: '', className: '' };
     const refresh = { hidden: true, disabled: false, addEventListener: () => {} };
     const elements: Record<string, any> = { audio, status, refresh };
+    const signedUrl = 'https://cdn.aisha.group/backend/voicelab/go/tts-audio/test.wav?X-Amz-Signature=a%2Bb%2Fc&x=a+b';
     const renewedUrl = 'https://cdn.aisha.group/backend/voicelab/go/tts-audio/test.wav?X-Amz-Signature=renewed%2Bexact';
     const calls: any[] = [];
+    let poll: (() => void) | null = null;
     runInNewContext(scripts.at(-1)?.[1] || '', {
       CONFIG: { audioOrigin: 'https://cdn.aisha.group', version: VERSION },
       Bridge: {
         on: (method: string, handler: (params: any) => void) => { handlers[method] = handler; },
         request: (method: string, params: any) => {
           calls.push({ method, params });
+          if (calls.length === 1) return Promise.resolve({ structuredContent: { id: 'gen_test', status: 'processing' } });
           return Promise.resolve({ structuredContent: {
-            id: 'gen_test', audio_available: true, audio_url: renewedUrl,
+            id: 'gen_test', audio_available: true, audio_url: calls.length === 2 ? signedUrl : renewedUrl,
             audio_url_expires_at: new Date(Date.now() + 600000).toISOString(),
           } });
         },
@@ -125,14 +128,16 @@ describe('ui:// resources', () => {
       },
       document: { getElementById: (id: string) => elements[id] },
       window: { addEventListener: () => {} },
+      setTimeout: (handler: () => void) => { poll = handler; return 1; },
+      clearTimeout: () => { poll = null; },
       URL,
     });
-    const signedUrl = 'https://cdn.aisha.group/backend/voicelab/go/tts-audio/test.wav?X-Amz-Signature=a%2Bb%2Fc&x=a+b';
-    handlers['ui/notifications/tool-input']({ arguments: { generation_id: 'gen_test' } });
-    handlers['ui/notifications/tool-result']({ structuredContent: {
-      id: 'gen_test', audio_available: true, audio_url: signedUrl,
-      audio_url_expires_at: new Date(Date.now() + 600000).toISOString(),
-    } });
+    handlers['ui/notifications/tool-result']({ structuredContent: { generation_id: 'gen_test', status: 'processing' } });
+    await new Promise(setImmediate);
+    assert.strictEqual(status.textContent, 'Generating audio…');
+    assert.ok(poll, 'queued generation should schedule a read-only status poll');
+    (poll as () => void)();
+    await new Promise(setImmediate);
     assert.strictEqual(audioAttributes.src, signedUrl);
     assert.strictEqual(status.textContent, 'Audio ready.');
     assert.strictEqual(refresh.hidden, false);
@@ -148,6 +153,7 @@ describe('ui:// resources', () => {
     assert.strictEqual(calls[0].method, 'tools/call');
     assert.strictEqual(calls[0].params.name, 'get_tts_generation');
     assert.strictEqual(calls[0].params.arguments.generation_id, 'gen_test');
+    assert.strictEqual(calls.length, 3);
     assert.strictEqual(audioAttributes.src, renewedUrl);
   });
 

@@ -176,6 +176,20 @@ export class VoiceLabClient {
       query?: Record<string, string>;
     } = {}
   ): Promise<ArrayBuffer> {
+    const response = await this.requestBinaryResponse(method, path, options);
+    return response.arrayBuffer();
+  }
+
+  /** Keep status and headers for binary endpoints that can also return 202 JSON. */
+  async requestBinaryResponse(
+    method: string,
+    path: string,
+    options: {
+      headers?: Record<string, string>;
+      body?: unknown;
+      query?: Record<string, string>;
+    } = {}
+  ): Promise<Response> {
     const url = buildSafeUrl(this.baseUrl, path);
     if (options.query) {
       for (const [key, value] of Object.entries(options.query)) {
@@ -212,7 +226,7 @@ export class VoiceLabClient {
       throw VoiceLabError.fromResponse(response.status, errorBody);
     }
 
-    return response.arrayBuffer();
+    return response;
   }
 
   async uploadMultipart<T>(
