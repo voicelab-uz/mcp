@@ -15,7 +15,7 @@ const PLAYER_JS = `
   'use strict';
   var GENERATION_ID = /^gen_[A-Za-z0-9_-]{1,120}$/;
   var state = { generationId: null, expiresAt: 0, refreshing: false, refreshedAfterError: false,
-    started: false, pollTimer: null, pollCount: 0, lastAppliedUrl: null };
+    started: false, pollTimer: null, pollCount: 0, lastAppliedUrl: null, retrySameUrl: false };
   var audio = document.getElementById('audio');
   var status = document.getElementById('status');
   var refreshButton = document.getElementById('refresh');
@@ -77,7 +77,7 @@ const PLAYER_JS = `
     }
     state.expiresAt = expiresAt;
     state.pollCount = 0;
-    if (state.lastAppliedUrl === detail.audio_url) {
+    if (state.lastAppliedUrl === detail.audio_url && !state.retrySameUrl) {
       if (state.refreshedAfterError) setStatus('Playback failed. Try refreshing the audio link.', true);
       else setStatus('Audio ready.', false);
       return;
@@ -85,6 +85,7 @@ const PLAYER_JS = `
     // Use the backend's signed URL verbatim; never reconstruct its path or query.
     audio.setAttribute('src', detail.audio_url);
     state.lastAppliedUrl = detail.audio_url;
+    state.retrySameUrl = false;
     audio.load();
     setStatus('Audio ready.', false);
   }
@@ -161,11 +162,12 @@ const PLAYER_JS = `
   });
   window.addEventListener('openai:set_globals', readOpenAiGlobals);
   refreshButton.addEventListener('click', function () {
-    state.refreshedAfterError = false; state.pollCount = 0; refreshAudio();
+    state.refreshedAfterError = false; state.pollCount = 0; state.retrySameUrl = true; refreshAudio();
   });
   audio.addEventListener('error', function () {
     if (state.refreshedAfterError) { setStatus('Playback failed. Try refreshing the audio link.', true); return; }
     state.refreshedAfterError = true;
+    state.retrySameUrl = true;
     refreshAudio();
   });
   audio.addEventListener('play', function () {

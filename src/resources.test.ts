@@ -95,16 +95,21 @@ describe('ui:// resources', () => {
     const scripts = [...content.text.matchAll(/<script>([\s\S]*?)<\/script>/g)];
     const handlers: Record<string, (params: any) => void> = {};
     const audioEvents: Record<string, () => void> = {};
+    const buttonEvents: Record<string, () => void> = {};
     const audioAttributes: Record<string, string> = {};
+    let audioLoadCount = 0;
     const audio = {
       addEventListener: (event: string, handler: () => void) => { audioEvents[event] = handler; },
       setAttribute: (name: string, value: string) => { audioAttributes[name] = value; },
       removeAttribute: (name: string) => { delete audioAttributes[name]; },
       pause: () => {},
-      load: () => {},
+      load: () => { audioLoadCount++; },
     };
     const status = { textContent: '', className: '' };
-    const refresh = { hidden: true, disabled: false, addEventListener: () => {} };
+    const refresh = {
+      hidden: true, disabled: false,
+      addEventListener: (event: string, handler: () => void) => { buttonEvents[event] = handler; },
+    };
     const elements: Record<string, any> = { audio, status, refresh };
     const signedUrl = 'https://cdn.aisha.group/backend/voicelab/go/tts-audio/test.wav?X-Amz-Signature=a%2Bb%2Fc&x=a+b';
     const renewedUrl = 'https://cdn.aisha.group/backend/voicelab/go/tts-audio/test.wav?X-Amz-Signature=renewed%2Bexact';
@@ -155,6 +160,13 @@ describe('ui:// resources', () => {
     assert.strictEqual(calls[0].params.arguments.generation_id, 'gen_test');
     assert.strictEqual(calls.length, 3);
     assert.strictEqual(audioAttributes.src, renewedUrl);
+
+    const loadsBeforeRetry = audioLoadCount;
+    buttonEvents.click();
+    await new Promise(setImmediate);
+    assert.strictEqual(calls.length, 4);
+    assert.strictEqual(audioAttributes.src, renewedUrl);
+    assert.strictEqual(audioLoadCount, loadsBeforeRetry + 1, 'manual refresh retries even if the signed URL is unchanged');
   });
 
   it('unknown resources return -32002', async () => {
