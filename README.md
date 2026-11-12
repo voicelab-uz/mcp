@@ -82,6 +82,18 @@ Or if installed globally:
 
 Once deployed (VPS HTTP + nginx, or Cloudflare Workers), agents can connect to the hosted endpoint.
 
+### Hosted connector setup
+
+In your AI client's MCP or connector settings, add a remote **Streamable HTTP**
+server with the URL `https://mcp.voicelab.uz/mcp`. Choose OAuth when prompted,
+sign in to VoiceLab, and confirm that the `list_voices` tool appears. Client
+requirements and setup details are in the [quickstart](https://docs.voicelab.uz/mcp/quickstart)
+and [client guide](https://docs.voicelab.uz/mcp/clients).
+
+Opening `/mcp` in a browser shows these connection instructions. MCP clients
+still use the same URL for authenticated protocol requests; requests without
+valid authorization receive a `401` challenge.
+
 ### ChatGPT / OpenAI Plugins
 
 OpenAI Plugins require **OAuth 2.1** authentication with per-user billing (static API keys are not supported).
@@ -94,7 +106,7 @@ OpenAI Plugins require **OAuth 2.1** authentication with per-user billing (stati
    export OAUTH_AUDIENCE='https://mcp.voicelab.uz'
    export VOICELAB_API_KEY='vlk_fallback_...'  # For non-OAuth clients
    ```
-3. Register plugin in ChatGPT: `https://mcp.voicelab.uz`
+3. Add the custom MCP server in ChatGPT: `https://mcp.voicelab.uz/mcp`
 
 ChatGPT discovers OAuth via `/.well-known/oauth-protected-resource` and initiates authorization-code + PKCE flow with VoiceLab.
 
