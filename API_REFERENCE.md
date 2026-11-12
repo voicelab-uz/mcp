@@ -67,8 +67,9 @@ Generate speech from text.
 - `voice_id` (required): Voice ID from `list_voices`
 - `speed` (optional): Speech speed (0.5-2.0, default 1)
 - `idempotency_key` (optional): Auto-generated if omitted
+- `include_audio_base64` (optional): Also return the WAV as base64 in the text result (default false)
 
-**Returns:** Base64-encoded 24kHz mono WAV audio
+**Returns:** A short text summary plus `structuredContent` metadata (`format`, `sample_rate`, `duration_ms`, `size_bytes`, `idempotency_key`). The 24kHz mono WAV is delivered as base64 in result `_meta["voicelab/audio"]` and played by the `ui://voicelab/audio` view in clients that render MCP Apps / ChatGPT widgets. With `include_audio_base64: true` the text result is the previous JSON (`audio_base64`, `format`, `sample_rate`, `idempotency_key`)
 
 ---
 

@@ -143,6 +143,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Inline audio player for `text_to_speech`**: new always-on `ui://voicelab/audio` MCP Apps view (also wired as `openai/outputTemplate`) so generated speech is playable in the chat UI. Plays via the Web Audio API from bytes in the tool result (empty CSP, no network access from the view); if the host does not deliver result `_meta`, Play re-calls `text_to_speech` with the same idempotency key (API replay, no new generation)
+
+### Changed
+
+- **`text_to_speech` result (breaking for clients that parsed the text)**: the text content is now a short summary and `structuredContent` carries metadata (`format`, `sample_rate`, `duration_ms`, `size_bytes`, `voice_id`, `language`, `idempotency_key`); the base64 WAV moved to result `_meta["voicelab/audio"]` so it no longer floods the model context. Pass `include_audio_base64: true` to get the previous JSON text (`audio_base64`, `format`, `sample_rate`, `idempotency_key`)
+- `text_to_speech` no longer forwards `idempotency_key` in the API request body (header only), keeping replays byte-identical
+
 ### Planned
 
 - HTTP transport for remote MCP hosting (e.g., mcp.voicelab.uz)

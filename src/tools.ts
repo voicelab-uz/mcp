@@ -15,7 +15,8 @@ import { UploadsModule, UPLOAD_ID_PATTERN, isUploadPurpose, type UploadSessionRe
 import { type AudioSource } from './audio-source.js';
 import { type AppsConfig, DEFAULT_API_ORIGIN, DEFAULT_WIDGET_DOMAIN } from './apps-config.js';
 import { uploadTools, fileParamTools, spikeTools } from './ingestion-tools.js';
-import { generateUUID, base64Encode, base64Decode, uuidV5 } from './utils.js';
+import { generateUUID, base64Encode, base64Decode, uuidV5, wavInfo } from './utils.js';
+import { AUDIO_RESOURCE_URI } from './resources.js';
 import { type VerifiedOAuthUser, hasRequiredScope } from './oauth.js';
 import { VoiceLabError } from './client.js';
 
@@ -499,7 +500,7 @@ const tools: Tool[] = [
   },
   {
     name: 'text_to_speech',
-    description: 'Generate speech from text. Returns audio as base64-encoded WAV. Generates unique idempotency key if not provided.',
+    description: 'Generate speech from text. The audio is shown to the user in an inline VoiceLab audio player (clients that render MCP Apps / ChatGPT widgets); the result you receive contains metadata only (duration, sample rate, idempotency key), not the audio bytes. Set include_audio_base64 to true only for programmatic clients that need the raw WAV as base64 (large). Generates unique idempotency key if not provided.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -513,8 +514,16 @@ const tools: Tool[] = [
         voice_id: { type: 'string', description: 'Voice ID from list_voices' },
         speed: { type: 'number', description: 'Speech speed (0.5-2.0, default 1)' },
         idempotency_key: { type: 'string', description: 'Optional idempotency key (auto-generated if omitted)' },
+        include_audio_base64: { type: 'boolean', description: 'Also return the WAV as base64 in the text result (default false). Not needed to play the audio for the user.' },
       },
       required: ['text', 'language', 'voice_id'],
+    },
+    _meta: {
+      ui: { resourceUri: AUDIO_RESOURCE_URI, visibility: ['model', 'app'] },
+      'openai/outputTemplate': AUDIO_RESOURCE_URI,
+      'openai/widgetAccessible': true,
+      'openai/toolInvocation/invoking': 'Generating audio…',
+      'openai/toolInvocation/invoked': 'Audio ready',
     },
   },
   {
@@ -1034,21 +1043,41 @@ export async function handleToolCall(
     }
 
     case 'text_to_speech': {
+      // Tool-only arguments never go to the API: the body must stay identical across
+      // idempotent replays (the audio player re-calls with the same key).
+      const { idempotency_key: _key, include_audio_base64: includeBase64, ...ttsRequest } = toolArgs;
       const idempotencyKey = toolArgs.idempotency_key || generateUUID();
-      const audioBuffer = await tts.generateSpeech(toolArgs as any, idempotencyKey);
+      const audioBuffer = await tts.generateSpeech(ttsRequest as any, idempotencyKey);
       const base64Audio = base64Encode(audioBuffer);
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({
+      const wav = wavInfo(audioBuffer);
+      const sampleRate = wav?.sampleRate ?? 24000;
+      const structuredContent: Record<string, unknown> = {
+        format: 'wav',
+        mime_type: 'audio/wav',
+        sample_rate: sampleRate,
+        ...(wav ? { duration_ms: wav.durationMs } : {}),
+        size_bytes: audioBuffer.byteLength,
+        ...(typeof toolArgs.voice_id === 'string' ? { voice_id: toolArgs.voice_id } : {}),
+        ...(typeof toolArgs.language === 'string' ? { language: toolArgs.language } : {}),
+        idempotency_key: idempotencyKey,
+      };
+      const text =
+        includeBase64 === true
+          ? JSON.stringify({
               audio_base64: base64Audio,
               format: 'wav',
-              sample_rate: 24000,
+              sample_rate: sampleRate,
               idempotency_key: idempotencyKey,
-            }, null, 2),
-          },
-        ],
+            }, null, 2)
+          : `Audio generated (${wav ? `${(wav.durationMs / 1000).toFixed(1)} s, ` : ''}WAV, ${sampleRate} Hz). ` +
+            'It is shown to the user in the VoiceLab audio player attached to this result, where they can play it. ' +
+            'Do not paste audio data or invent a download link. ' +
+            `Idempotency key: ${idempotencyKey}.`;
+      return {
+        content: [{ type: 'text', text }],
+        structuredContent,
+        // Delivered to the audio player view, not to the model.
+        _meta: { 'voicelab/audio': { audio_base64: base64Audio, mime_type: 'audio/wav' } },
       };
     }
 
