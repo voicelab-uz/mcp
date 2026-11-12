@@ -18,6 +18,7 @@ import { uploadTools, fileParamTools, spikeTools } from './ingestion-tools.js';
 import { generateUUID, base64Encode, base64Decode, uuidV5 } from './utils.js';
 import { type VerifiedOAuthUser, hasRequiredScope } from './oauth.js';
 import { VoiceLabError } from './client.js';
+import { TTS_AUDIO_RESOURCE_URI } from './resources.js';
 
 export interface Modules {
   llm: LLMModule;
@@ -499,7 +500,7 @@ const tools: Tool[] = [
   },
   {
     name: 'text_to_speech',
-    description: 'Generate speech from text. Returns audio as base64-encoded WAV. Generates unique idempotency key if not provided.',
+    description: 'Generate speech from text and show an audio player. Returns base64-encoded WAV when completed, or a generation ID and queued/processing status when synthesis continues asynchronously. Poll get_tts_generation for queued results; do not repeat the POST. Generates a unique idempotency key if omitted.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -515,6 +516,22 @@ const tools: Tool[] = [
         idempotency_key: { type: 'string', description: 'Optional idempotency key (auto-generated if omitted)' },
       },
       required: ['text', 'language', 'voice_id'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        generation_id: { type: 'string' },
+        status: { type: 'string', enum: ['completed', 'queued', 'processing'] },
+        idempotency_key: { type: 'string' },
+      },
+      required: ['status'],
+      additionalProperties: false,
+    },
+    _meta: {
+      ui: { resourceUri: TTS_AUDIO_RESOURCE_URI, visibility: ['model', 'app'] },
+      'openai/outputTemplate': TTS_AUDIO_RESOURCE_URI,
+      'openai/toolInvocation/invoking': 'Generating audio…',
+      'openai/toolInvocation/invoked': 'Audio generation started',
     },
   },
   {
@@ -535,7 +552,7 @@ const tools: Tool[] = [
   },
   {
     name: 'get_tts_generation',
-    description: 'Get TTS generation details with audio URL',
+    description: 'Get a TTS generation and show its audio player. Signed audio URLs are temporary; use the player when available instead of copying or rewriting the URL into a Markdown link.',
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -547,6 +564,24 @@ const tools: Tool[] = [
         generation_id: { type: 'string', description: 'Generation ID' },
       },
       required: ['generation_id'],
+    },
+    outputSchema: {
+      type: 'object',
+      properties: {
+        id: { type: 'string' },
+        status: { type: 'string' },
+        audio_available: { type: 'boolean' },
+        audio_url: { type: 'string' },
+        audio_url_expires_at: { type: 'string' },
+      },
+      required: ['id'],
+      additionalProperties: false,
+    },
+    _meta: {
+      ui: { resourceUri: TTS_AUDIO_RESOURCE_URI, visibility: ['model', 'app'] },
+      'openai/outputTemplate': TTS_AUDIO_RESOURCE_URI,
+      'openai/toolInvocation/invoking': 'Loading audio…',
+      'openai/toolInvocation/invoked': 'Audio ready',
     },
   },
   {
@@ -567,7 +602,7 @@ const tools: Tool[] = [
   },
   {
     name: 'speech_to_text',
-    description: 'Transcribe audio asynchronously. Provide exactly one audio source: audio_url (public HTTPS URL the API downloads; preferred for large files) or audio_base64 (small files only: the MCP request body is capped at 10 MiB, so base64 audio must be under ~7 MB). Returns 202 Accepted with job ID for polling (even for short clips). Poll get_transcription until status is completed. Generates unique idempotency key if not provided.',
+    description: 'Transcribe audio asynchronously. For a file attached in ChatGPT, use transcribe_file instead. Provide exactly one audio source: audio_url (public HTTPS URL the API downloads; preferred for large files) or audio_base64 (small files only: the MCP request body is capped at 10 MiB, so base64 audio must be under ~7 MB). Returns 202 Accepted with job ID for polling (even for short clips). Poll get_transcription until status is completed. Generates unique idempotency key if not provided.',
     annotations: {
       readOnlyHint: false,
       destructiveHint: false,
@@ -1035,8 +1070,16 @@ export async function handleToolCall(
 
     case 'text_to_speech': {
       const idempotencyKey = toolArgs.idempotency_key || generateUUID();
-      const audioBuffer = await tts.generateSpeech(toolArgs as any, idempotencyKey);
-      const base64Audio = base64Encode(audioBuffer);
+      const generated = await tts.generateSpeech(toolArgs as any, idempotencyKey);
+      if (generated.status !== 'completed') {
+        const result = {
+          generation_id: generated.generationId,
+          status: generated.status,
+          idempotency_key: idempotencyKey,
+        };
+        return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }], structuredContent: result };
+      }
+      const base64Audio = base64Encode(generated.audio);
       return {
         content: [
           {
@@ -1046,9 +1089,14 @@ export async function handleToolCall(
               format: 'wav',
               sample_rate: 24000,
               idempotency_key: idempotencyKey,
+              ...(generated.generationId ? { generation_id: generated.generationId } : {}),
             }, null, 2),
           },
         ],
+        structuredContent: {
+          status: 'completed',
+          ...(generated.generationId ? { generation_id: generated.generationId } : {}),
+        },
       };
     }
 
@@ -1059,7 +1107,16 @@ export async function handleToolCall(
 
     case 'get_tts_generation': {
       const result = await tts.getGeneration(toolArgs.generation_id as string);
-      return { content: [{ type: 'text', text: JSON.stringify(result, null, 2) }] };
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        structuredContent: {
+          id: result.id,
+          ...(result.status ? { status: result.status } : {}),
+          ...(typeof result.audio_available === 'boolean' ? { audio_available: result.audio_available } : {}),
+          ...(result.audio_url ? { audio_url: result.audio_url } : {}),
+          ...(result.audio_url_expires_at ? { audio_url_expires_at: result.audio_url_expires_at } : {}),
+        },
+      };
     }
 
     case 'delete_tts_generation': {

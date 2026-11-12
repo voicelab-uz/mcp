@@ -8,12 +8,14 @@ import {
 import { type AppsConfig, originOf } from './apps-config.js';
 import { renderUploadViewHtml } from './ui/upload-view.js';
 import { renderSpikeViewHtml } from './ui/spike-view.js';
+import { renderTtsAudioViewHtml, TTS_AUDIO_ORIGIN } from './ui/tts-audio-view.js';
 
 /** MCP Apps (spec 2026-01-26) UI resources served by this server. */
 
 export const MCP_APP_MIME_TYPE = 'text/html;profile=mcp-app';
 export const UPLOAD_RESOURCE_URI = 'ui://voicelab/upload';
 export const SPIKE_RESOURCE_URI = 'ui://voicelab/spike';
+export const TTS_AUDIO_RESOURCE_URI = 'ui://voicelab/tts-audio';
 
 /** JSON-RPC error code for an unknown resource (MCP spec). */
 export const RESOURCE_NOT_FOUND = -32002;
@@ -32,17 +34,18 @@ function cspMeta(
   connectDomains: string[],
   widgetDomain: string,
   description: string,
-  redirectDomains: string[] = []
+  redirectDomains: string[] = [],
+  resourceDomains: string[] = []
 ): Record<string, unknown> {
   return {
     ui: {
-      csp: { connectDomains, resourceDomains: [] },
+      csp: { connectDomains, resourceDomains },
       prefersBorder: true,
     },
     // ChatGPT compatibility aliases (legacy keys still read by ChatGPT).
     'openai/widgetCSP': {
       connect_domains: connectDomains,
-      resource_domains: [],
+      resource_domains: resourceDomains,
       ...(redirectDomains.length ? { redirect_domains: redirectDomains } : {}),
     },
     'openai/widgetDomain': widgetDomain,
@@ -53,7 +56,15 @@ function cspMeta(
 
 export function uiResources(config: AppsConfig): UiResource[] {
   const pageOrigin = originOf(config.uploadPageUrl);
-  const resources: UiResource[] = [];
+  const resources: UiResource[] = [{
+    uri: TTS_AUDIO_RESOURCE_URI,
+    name: 'voicelab-tts-audio',
+    title: 'Play VoiceLab audio',
+    description: 'Play a generated VoiceLab speech recording',
+    mimeType: MCP_APP_MIME_TYPE,
+    _meta: cspMeta([], config.widgetDomain, 'Play a generated VoiceLab speech recording', [], [TTS_AUDIO_ORIGIN]),
+    render: renderTtsAudioViewHtml,
+  }];
   if (config.uploadSessions) {
     resources.push({
       uri: UPLOAD_RESOURCE_URI,
