@@ -16,6 +16,7 @@ import {
 } from './oauth.js';
 import { VERSION } from './version.js';
 import { createMcpAnalytics } from './analytics.js';
+import { MCP_SETUP_CSP, MCP_SETUP_HTML } from './setup-page.js';
 
 const MCP_ANALYTICS = createMcpAnalytics(process.env);
 let shuttingDown = false;
@@ -148,35 +149,13 @@ function wantsMcpSetupPage(req: IncomingMessage): boolean {
 }
 
 function sendMcpSetupPage(res: ServerResponse): void {
-  const html = `<!doctype html>
-<html lang="en">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Connect VoiceLab MCP</title>
-</head>
-<body>
-  <main>
-    <h1>Connect VoiceLab MCP</h1>
-    <p>This is the VoiceLab MCP server endpoint. Add it in your AI app's connector settings to use VoiceLab tools.</p>
-    <ol>
-      <li>Open your AI app's connectors or MCP server settings.</li>
-      <li>Add a custom connector or remote MCP server using Streamable HTTP.</li>
-      <li>Enter <code>https://mcp.voicelab.uz/mcp</code> as the server URL.</li>
-      <li>Save the connector and complete VoiceLab sign-in if your app prompts you to authorize access.</li>
-    </ol>
-    <p>Once connected, ask your assistant to list VoiceLab voices or transcribe a recording.</p>
-    <p>If your app asks for a bearer token instead of offering sign-in, contact your VoiceLab MCP operator for access. Never paste a token into this browser page.</p>
-    <p>See the <a href="https://docs.voicelab.uz/mcp/quickstart">MCP quickstart</a> and <a href="https://docs.voicelab.uz/mcp/clients">client setup guides</a> for app-specific steps.</p>
-  </main>
-</body>
-</html>`;
   applySecurityHeaders(res);
+  res.setHeader('Content-Security-Policy', MCP_SETUP_CSP);
   res.writeHead(200, {
     'Content-Type': 'text/html; charset=utf-8',
-    'Content-Length': Buffer.byteLength(html),
+    'Content-Length': Buffer.byteLength(MCP_SETUP_HTML),
   });
-  res.end(html);
+  res.end(MCP_SETUP_HTML);
 }
 
 /** Constant-time-ish compare via SHA-256 digests (avoids length oracle on timingSafeEqual). */

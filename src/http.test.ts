@@ -4,6 +4,8 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 
 const projectRoot = fileURLToPath(new URL('../', import.meta.url));
 const serverSource = fileURLToPath(new URL('./index.ts', import.meta.url));
@@ -79,9 +81,19 @@ test('browser setup guide does not change MCP authentication responses', async (
   const page = await browser.text();
   assert.match(page, /Connect VoiceLab MCP/);
   assert.match(page, /https:\/\/mcp\.voicelab\.uz\/mcp/);
-  assert.match(page, /custom connector or remote MCP server using Streamable HTTP/);
+  assert.match(page, /Streamable HTTP/);
+  assert.match(page, /https:\/\/chatgpt\.com\/plugins\/plugin_asdk_app_6abe4899cbb081918c17cf28290df7b8/);
+  assert.match(page, /Add a custom connector by URL/);
+  assert.match(page, /Team or Enterprise/);
+  assert.match(page, /https:\/\/support\.claude\.com\/en\/articles\/11175166/);
   assert.match(page, /https:\/\/docs\.voicelab\.uz\/mcp\/quickstart/);
   assert.match(page, /https:\/\/docs\.voicelab\.uz\/mcp\/clients/);
+  const style = /<style>([\s\S]*?)<\/style>/.exec(page)?.[1];
+  assert.ok(style);
+  const styleHash = createHash('sha256').update(style).digest('base64');
+  assert.ok((browser.headers.get('content-security-policy') || '').includes(`style-src 'sha256-${styleHash}'`));
+  const nginxSnippet = readFileSync(new URL('../packaging/nginx/mcp.voicelab.uz.location.snippet', import.meta.url), 'utf8');
+  assert.ok(nginxSnippet.includes(`style-src 'sha256-${styleHash}'`));
   assert.doesNotMatch(page, new RegExp(`${token}|${apiKey}`));
 
   for (const accept of ['application/json, text/event-stream', '*/*', 'text/html;q=0', 'text/html, text/event-stream']) {

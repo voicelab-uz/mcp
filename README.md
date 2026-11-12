@@ -78,7 +78,7 @@ Or if installed globally:
 }
 ```
 
-## Remote Usage (ChatGPT, Grok, Muse)
+## Remote Usage (ChatGPT, Claude, Grok, Muse)
 
 Once deployed (VPS HTTP + nginx, or Cloudflare Workers), agents can connect to the hosted endpoint.
 
@@ -90,7 +90,9 @@ sign in to VoiceLab, and confirm that the `list_voices` tool appears. Client
 requirements and setup details are in the [quickstart](https://docs.voicelab.uz/mcp/quickstart)
 and [client guide](https://docs.voicelab.uz/mcp/clients).
 
-Opening `/mcp` in a browser shows these connection instructions. MCP clients
+Opening `/mcp` in a browser shows a VoiceLab-styled connection guide with a
+[ChatGPT plugin link](https://chatgpt.com/plugins/plugin_asdk_app_6abe4899cbb081918c17cf28290df7b8)
+and Claude setup steps. MCP clients
 still use the same URL for authenticated protocol requests; requests without
 valid authorization receive a `401` challenge.
 
@@ -102,11 +104,11 @@ OpenAI Plugins require **OAuth 2.1** authentication with per-user billing (stati
 1. VoiceLab backend implements OAuth AS (see [`BACKEND_OAUTH_SPEC.md`](./BACKEND_OAUTH_SPEC.md))
 2. Configure MCP server:
    ```bash
-   export OAUTH_ISSUER='https://auth.voicelab.uz'
+   export OAUTH_ISSUER='https://api.voicelab.uz'
    export OAUTH_AUDIENCE='https://mcp.voicelab.uz'
    export VOICELAB_API_KEY='vlk_fallback_...'  # For non-OAuth clients
    ```
-3. Add the custom MCP server in ChatGPT: `https://mcp.voicelab.uz/mcp`
+3. [Open the VoiceLab plugin in ChatGPT](https://chatgpt.com/plugins/plugin_asdk_app_6abe4899cbb081918c17cf28290df7b8), or add the custom MCP server URL `https://mcp.voicelab.uz/mcp`.
 
 ChatGPT discovers OAuth via `/.well-known/oauth-protected-resource` and initiates authorization-code + PKCE flow with VoiceLab.
 
@@ -114,6 +116,14 @@ ChatGPT discovers OAuth via `/.well-known/oauth-protected-resource` and initiate
 
 **Full documentation**: [docs/OAUTH_INTEGRATION.md](./docs/OAUTH_INTEGRATION.md)  
 **Backend requirements**: [BACKEND_OAUTH_SPEC.md](./BACKEND_OAUTH_SPEC.md)
+
+### Claude custom connector
+
+Claude supports remote MCP server URLs. In Claude, open Connectors under
+Customize or Plugins, add a custom connector named VoiceLab, enter
+`https://mcp.voicelab.uz/mcp`, and follow the OAuth sign-in flow. For Team and
+Enterprise plans, an organization owner adds the Web connector first; members
+then connect individually. See [Claude's custom connector guide](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp).
 
 ### Grok
 
