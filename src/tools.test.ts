@@ -17,7 +17,8 @@ import { STTModule } from './stt.js';
 import { UploadsModule } from './uploads.js';
 import { loadAppsConfig } from './apps-config.js';
 import { createMcpServer } from './server.js';
-import { uuidV5 } from './utils.js';
+import { uuidV5, wavInfo, base64Decode } from './utils.js';
+import { TTSModule } from './tts.js';
 import { OPENAI_FILE_DEF } from './ingestion-tools.js';
 import { VoiceLabError } from './client.js';
 
@@ -43,6 +44,11 @@ class FakeClient {
     this.calls.push({ kind: 'request', method, path, options });
     return this.next() as T;
   }
+  binary: ArrayBuffer = new ArrayBuffer(0);
+  async requestBinary(method: string, path: string, options: any = {}): Promise<ArrayBuffer> {
+    this.calls.push({ kind: 'request', method, path, options });
+    return this.binary;
+  }
   async uploadMultipart<T>(path: string, fields: Record<string, string | Blob>, options: any = {}): Promise<T> {
     this.calls.push({ kind: 'upload', path, fields, options });
     return this.next() as T;
@@ -54,6 +60,7 @@ function setup(env: Record<string, string> = {}) {
   const modules = {
     meetings: new MeetingsModule(client as never),
     stt: new STTModule(client as never),
+    tts: new TTSModule(client as never),
     uploads: new UploadsModule(client as never),
   } as unknown as Modules;
   const options: ToolsOptions = { apps: loadAppsConfig(env) };
@@ -349,6 +356,102 @@ describe('ChatGPT fileParams tools', () => {
       () => call('transcribe_file', { file: { download_url: 'http://evil/?sig=XYZSECRET', file_id: 'f' }, language: 'en' }) as Promise<unknown>,
       (e: any) => /https/.test(e.message) && !e.message.includes('XYZSECRET')
     );
+  });
+});
+
+/** Minimal mono 16-bit PCM WAV with `frames` silent samples. */
+function makeWav(frames: number, sampleRate = 24000): ArrayBuffer {
+  const buffer = new ArrayBuffer(44 + frames * 2);
+  const view = new DataView(buffer);
+  const ascii = (offset: number, text: string) => [...text].forEach((ch, i) => view.setUint8(offset + i, ch.charCodeAt(0)));
+  ascii(0, 'RIFF');
+  view.setUint32(4, 36 + frames * 2, true);
+  ascii(8, 'WAVE');
+  ascii(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  ascii(36, 'data');
+  view.setUint32(40, frames * 2, true);
+  return buffer;
+}
+
+describe('text_to_speech audio player result', () => {
+  const ARGS = { text: 'Salom', language: 'uz', voice_id: 'voice_1', speed: 1.1 };
+
+  it('wavInfo reads sample rate and duration, and rejects non-WAV bytes', () => {
+    assert.deepStrictEqual(wavInfo(makeWav(36000)), { sampleRate: 24000, channels: 1, durationMs: 1500 });
+    assert.strictEqual(wavInfo(new Uint8Array(64)), undefined);
+    assert.strictEqual(wavInfo(new ArrayBuffer(10)), undefined);
+    // Placeholder data size (streamed WAV) falls back to the remaining bytes.
+    const streamed = makeWav(24000);
+    new DataView(streamed).setUint32(40, 0xffffffff, true);
+    assert.strictEqual(wavInfo(streamed)?.durationMs, 1000);
+  });
+
+  it('keeps audio bytes out of the model-visible result and hands them to the view via _meta', async () => {
+    const { client, call } = setup();
+    client.binary = makeWav(36000);
+    const result: any = await call('text_to_speech', ARGS);
+    assert.ok(!result.isError);
+    const base64 = result._meta['voicelab/audio'].audio_base64;
+    assert.strictEqual(base64Decode(base64).byteLength, 44 + 72000);
+    assert.strictEqual(result._meta['voicelab/audio'].mime_type, 'audio/wav');
+    assert.strictEqual(result.content.length, 1);
+    assert.match(result.content[0].text, /Audio generated \(1\.5 s, WAV, 24000 Hz\)/);
+    assert.match(result.content[0].text, /audio player/);
+    assert.ok(!result.content[0].text.includes(base64.slice(0, 40)));
+    assert.ok(!JSON.stringify(result.structuredContent).includes('audio_base64'));
+    assert.deepStrictEqual(result.structuredContent, {
+      format: 'wav',
+      mime_type: 'audio/wav',
+      sample_rate: 24000,
+      duration_ms: 1500,
+      size_bytes: 44 + 72000,
+      voice_id: 'voice_1',
+      language: 'uz',
+      idempotency_key: result.structuredContent.idempotency_key,
+    });
+    assert.match(result.structuredContent.idempotency_key, /^[0-9a-f-]{36}$/);
+  });
+
+  it('sends only TTS fields to the API so a replay with the same key has an identical body', async () => {
+    const { client, call } = setup();
+    client.binary = makeWav(100);
+    await call('text_to_speech', ARGS);
+    const first: any = await call('text_to_speech', { ...ARGS, idempotency_key: 'key-12345678', include_audio_base64: true });
+    assert.deepStrictEqual(client.calls[0].options.body, ARGS);
+    assert.deepStrictEqual(client.calls[1].options.body, ARGS);
+    assert.strictEqual(client.calls[1].options.headers['Idempotency-Key'], 'key-12345678');
+    // Opt-in keeps the previous JSON text shape for programmatic clients.
+    const parsed = JSON.parse(first.content[0].text);
+    assert.deepStrictEqual(Object.keys(parsed), ['audio_base64', 'format', 'sample_rate', 'idempotency_key']);
+    assert.strictEqual(parsed.audio_base64, first._meta['voicelab/audio'].audio_base64);
+    assert.strictEqual(parsed.idempotency_key, 'key-12345678');
+  });
+
+  it('still returns a playable result when the bytes are not a parseable WAV', async () => {
+    const { client, call } = setup();
+    client.binary = new Uint8Array([1, 2, 3]).buffer;
+    const result: any = await call('text_to_speech', ARGS);
+    assert.strictEqual(result.structuredContent.sample_rate, 24000);
+    assert.ok(!('duration_ms' in result.structuredContent));
+    assert.match(result.content[0].text, /Audio generated \(WAV, 24000 Hz\)/);
+    assert.strictEqual(result._meta['voicelab/audio'].audio_base64, 'AQID');
+  });
+
+  it('is linked to the always-on audio view in tools/list', () => {
+    const tool: any = listTools().find((t) => t.name === 'text_to_speech');
+    assert.strictEqual(tool._meta.ui.resourceUri, 'ui://voicelab/audio');
+    assert.deepStrictEqual(tool._meta.ui.visibility, ['model', 'app']);
+    assert.strictEqual(tool._meta['openai/outputTemplate'], 'ui://voicelab/audio');
+    assert.strictEqual(tool._meta['openai/widgetAccessible'], true);
+    assert.strictEqual(tool.inputSchema.properties.include_audio_base64.type, 'boolean');
+    assert.ok(withSecuritySchemes([tool])[0]._meta, 'security schemes keep _meta');
   });
 });
 

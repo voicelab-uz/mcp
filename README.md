@@ -208,7 +208,7 @@ Public discovery (no auth): `GET /health`, `GET /v1`, `GET /.well-known/mcp.json
 
 - `list_tts_languages` — List supported languages and models
 - `list_voices` — List available voices (filter by language)
-- `text_to_speech` — Generate speech (returns base64 WAV)
+- `text_to_speech` — Generate speech; shown to the user in an inline audio player (`ui://voicelab/audio`) in clients that render MCP Apps / ChatGPT widgets. The model gets metadata only; pass `include_audio_base64: true` for the raw base64 WAV
 - `list_tts_generations` — List generation history
 - `get_tts_generation` — Get generation details with audio URL
 - `delete_tts_generation` — Delete a generation (destructive)

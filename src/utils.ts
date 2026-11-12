@@ -74,3 +74,46 @@ export async function uuidV5(name: string, namespace: string): Promise<string> {
   const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
+
+export interface WavInfo {
+  sampleRate: number;
+  channels: number;
+  durationMs: number;
+}
+
+/**
+ * Read sample rate / duration from a PCM WAV header. Returns undefined when the
+ * bytes are not a parseable RIFF/WAVE file (callers then fall back to defaults).
+ */
+export function wavInfo(data: ArrayBuffer | Uint8Array): WavInfo | undefined {
+  const bytes = data instanceof Uint8Array ? data : new Uint8Array(data);
+  if (bytes.byteLength < 44) return undefined;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (view.getUint32(0, false) !== 0x52494646 || view.getUint32(8, false) !== 0x57415645) return undefined;
+  let pos = 12;
+  let fmt: { channels: number; sampleRate: number; byteRate: number } | undefined;
+  while (pos + 8 <= bytes.byteLength) {
+    const id = view.getUint32(pos, false);
+    const size = view.getUint32(pos + 4, true);
+    const body = pos + 8;
+    if (id === 0x666d7420 && body + 16 <= bytes.byteLength) {
+      fmt = {
+        channels: view.getUint16(body + 2, true),
+        sampleRate: view.getUint32(body + 4, true),
+        byteRate: view.getUint32(body + 8, true),
+      };
+    } else if (id === 0x64617461) {
+      if (!fmt || !fmt.byteRate || !fmt.sampleRate) return undefined;
+      const available = bytes.byteLength - body;
+      // Streamed WAVs carry a placeholder (0 / 0xFFFFFFFF) data size.
+      const length = size === 0 || size > available ? available : size;
+      return {
+        sampleRate: fmt.sampleRate,
+        channels: fmt.channels,
+        durationMs: Math.round((length / fmt.byteRate) * 1000),
+      };
+    }
+    pos = body + size + (size % 2);
+  }
+  return undefined;
+}

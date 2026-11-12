@@ -8,6 +8,7 @@ import { loadAppsConfig } from './apps-config.js';
 import {
   MCP_APP_MIME_TYPE,
   RESOURCE_NOT_FOUND,
+  AUDIO_RESOURCE_URI,
   SPIKE_RESOURCE_URI,
   UPLOAD_RESOURCE_URI,
   listResourcesResult,
@@ -40,7 +41,7 @@ describe('ui:// resources', () => {
     const { client, close } = await connect();
     try {
       const { resources } = await client.listResources();
-      assert.deepStrictEqual(resources, []);
+      assert.deepStrictEqual(resources.map((r) => r.uri), [AUDIO_RESOURCE_URI]);
       await assert.rejects(
         () => client.readResource({ uri: UPLOAD_RESOURCE_URI }),
         (e: any) => e instanceof McpError && e.code === RESOURCE_NOT_FOUND
@@ -54,7 +55,7 @@ describe('ui:// resources', () => {
     const { client, close } = await connect({ MCP_ENABLE_UPLOAD_SESSIONS: '1' });
     try {
       const { resources } = await client.listResources();
-      assert.deepStrictEqual(resources.map((r) => r.uri), [UPLOAD_RESOURCE_URI]);
+      assert.deepStrictEqual(resources.map((r) => r.uri), [AUDIO_RESOURCE_URI, UPLOAD_RESOURCE_URI]);
       const result = await client.readResource({ uri: UPLOAD_RESOURCE_URI });
       const content: any = result.contents[0];
       assert.strictEqual(content.uri, UPLOAD_RESOURCE_URI);
@@ -82,6 +83,34 @@ describe('ui:// resources', () => {
     }
   });
 
+  it('audio player view is always readable, with an empty CSP and no network or logging code', async () => {
+    const { client, close } = await connect();
+    try {
+      const result = await client.readResource({ uri: AUDIO_RESOURCE_URI });
+      const content: any = result.contents[0];
+      assert.strictEqual(content.mimeType, MCP_APP_MIME_TYPE);
+      assert.deepStrictEqual(content._meta.ui.csp, { connectDomains: [], resourceDomains: [] });
+      assert.deepStrictEqual(content._meta['openai/widgetCSP'], { connect_domains: [], resource_domains: [] });
+      assert.strictEqual(content._meta['openai/widgetDomain'], 'https://mcp.voicelab.uz');
+      const html: string = content.text;
+      assert.match(html, /ui\/initialize/);
+      assert.match(html, /voicelab\/audio/);
+      assert.match(html, /toolResponseMetadata/);
+      assert.match(html, /mcp_tool_result/);
+      assert.match(html, /include_audio_base64 = true/);
+      assert.match(html, /event\.source !== window\.parent/);
+      assert.ok(!/innerHTML/.test(html), 'view must not use innerHTML');
+      assert.ok(!/console\.(log|info|debug)/.test(html), 'view must not log');
+      assert.ok(!/\bfetch\(|XMLHttpRequest|Authorization/.test(html), 'view must not make network requests');
+      // Every inline script must at least parse.
+      const scripts = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
+      assert.strictEqual(scripts.length, 3);
+      for (const script of scripts) new Function(script);
+    } finally {
+      await close();
+    }
+  });
+
   it('unknown resources return -32002', async () => {
     const { client, close } = await connect();
     try {
@@ -102,10 +131,10 @@ describe('ui:// resources', () => {
   it('spike resource is listed only when enabled, with CSP from SPIKE_ECHO_URL origin', () => {
     const env = { MCP_ENABLE_SPIKE: '1', SPIKE_ECHO_URL: 'https://echo.staging.voicelab.uz/put?x=1' };
     const config = loadAppsConfig(env);
-    assert.deepStrictEqual(listResourcesResult(config).resources.map((r) => r.uri), [SPIKE_RESOURCE_URI]);
+    assert.deepStrictEqual(listResourcesResult(config).resources.map((r) => r.uri), [AUDIO_RESOURCE_URI, SPIKE_RESOURCE_URI]);
     assert.deepStrictEqual(
       listResourcesResult(loadAppsConfig({ ...env, MCP_ENABLE_UPLOAD_SESSIONS: '1' })).resources.map((r) => r.uri),
-      [UPLOAD_RESOURCE_URI, SPIKE_RESOURCE_URI]
+      [AUDIO_RESOURCE_URI, UPLOAD_RESOURCE_URI, SPIKE_RESOURCE_URI]
     );
     const content: any = readResourceResult(config, SPIKE_RESOURCE_URI).contents[0];
     assert.deepStrictEqual(content._meta.ui.csp.connectDomains, ['https://echo.staging.voicelab.uz']);
