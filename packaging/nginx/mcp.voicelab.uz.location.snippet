@@ -11,7 +11,7 @@
     add_header X-Frame-Options "DENY" always;
     add_header Permissions-Policy "geolocation=(), microphone=(), camera=(), payment=()" always;
     # Allow only the static setup page's stylesheet. Keep the hash in sync with src/setup-page.ts.
-    add_header Content-Security-Policy "default-src 'none'; style-src 'sha256-BtnQlDaYVAXYhu5XEUjxkkSwcZuUjcsNH4hhUDrfohU='; frame-ancestors 'none'; base-uri 'none'" always;
+    add_header Content-Security-Policy "default-src 'none'; style-src 'sha256-vcSVzHimrcsDadri9w+m6DLbFiBHT0obhP0k7bIZZS0='; frame-ancestors 'none'; base-uri 'none'" always;
 
     location / {
         limit_req zone=voicelab_mcp burst=20 nodelay;

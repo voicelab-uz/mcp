@@ -83,11 +83,14 @@ test('browser setup guide does not change MCP authentication responses', async (
   assert.match(page, /https:\/\/mcp\.voicelab\.uz\/mcp/);
   assert.match(page, /Streamable HTTP/);
   assert.match(page, /https:\/\/chatgpt\.com\/plugins\/plugin_asdk_app_6abe4899cbb081918c17cf28290df7b8/);
-  assert.match(page, /Add a custom connector by URL/);
+  assert.match(page, /Add custom connector/);
   assert.match(page, /Team or Enterprise/);
   assert.match(page, /https:\/\/support\.claude\.com\/en\/articles\/11175166/);
   assert.match(page, /https:\/\/docs\.voicelab\.uz\/mcp\/quickstart/);
   assert.match(page, /https:\/\/docs\.voicelab\.uz\/mcp\/clients/);
+  const logo = readFileSync(new URL('../assets/voicelab-logo.svg', import.meta.url), 'utf8').trim();
+  assert.ok(page.includes(logo));
+  assert.doesNotMatch(page, /hero-art|Your voice tools|Ready to connect/);
   const style = /<style>([\s\S]*?)<\/style>/.exec(page)?.[1];
   assert.ok(style);
   const styleHash = createHash('sha256').update(style).digest('base64');
