@@ -97,6 +97,10 @@ describe('ui:// resources', () => {
       assert.match(html, /voicelab\/audio/);
       assert.match(html, /toolResponseMetadata/);
       assert.match(html, /mcp_tool_result/);
+      // Spec field for ui/initialize, and ChatGPT's own height API.
+      assert.match(html, /appInfo: clientInfo/);
+      assert.match(html, /notifyIntrinsicHeight/);
+      assert.match(html, /Bridge\.reportOpenAiHeight\(\);/);
       assert.match(html, /include_audio_base64 = true/);
       assert.match(html, /event\.source !== window\.parent/);
       assert.ok(!/innerHTML/.test(html), 'view must not use innerHTML');

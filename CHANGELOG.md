@@ -141,7 +141,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Voice isolation tools unchanged (`audio_base64` only)
 - No new runtime dependencies
 
-## [Unreleased]
+## [1.4.0] - 2026-11-13
 
 ### Added
 
@@ -151,6 +151,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`text_to_speech` result (breaking for clients that parsed the text)**: the text content is now a short summary and `structuredContent` carries metadata (`format`, `sample_rate`, `duration_ms`, `size_bytes`, `voice_id`, `language`, `idempotency_key`); the base64 WAV moved to result `_meta["voicelab/audio"]` so it no longer floods the model context. Pass `include_audio_base64: true` to get the previous JSON text (`audio_base64`, `format`, `sample_rate`, `idempotency_key`)
 - `text_to_speech` no longer forwards `idempotency_key` in the API request body (header only), keeping replays byte-identical
+
+### Fixed
+
+- UI views now send the spec field `appInfo` in `ui/initialize` (previously only `clientInfo`)
+- UI views report their height to ChatGPT via `window.openai.notifyIntrinsicHeight` at startup instead of waiting for the bridge handshake
+
+### Operations
+
+- HTTP server logs each MCP method with the server version (`[mcp] v1.4.0 tools/list`, tool name for `tools/call`, `ui://` URI for `resources/read`, client name for `initialize`); never arguments or results. Shows whether a host fetched the tool list and widget templates
+
+## [Unreleased]
 
 ### Planned
 

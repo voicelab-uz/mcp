@@ -359,6 +359,8 @@ const AUDIO_VIEW_JS = `
   setStatus('Preparing audio\\u2026');
   render();
   readOpenAiGlobals();
+  // Size the frame right away; the bridge handshake can take seconds or never answer.
+  Bridge.reportOpenAiHeight();
   Bridge.initialize({ name: 'voicelab-audio', version: CONFIG.version })
     .then(function (res) { state.bridgeOk = true; Bridge.applyHostContext(res.hostContext); })
     .catch(function () { /* host may be ChatGPT-only; window.openai path */ })
