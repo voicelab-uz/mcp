@@ -98,6 +98,8 @@ var Bridge = (function () {
     return request('ui/initialize', {
       protocolVersion: PROTOCOL_VERSION,
       appCapabilities: { availableDisplayModes: ['inline'] },
+      // MCP Apps names this field appInfo; clientInfo is kept for older hosts.
+      appInfo: clientInfo,
       clientInfo: clientInfo
     }, 15000).then(function (result) {
       notify('ui/notifications/initialized', {});
@@ -105,7 +107,20 @@ var Bridge = (function () {
     });
   }
 
+  // ChatGPT sizes the frame from window.openai.notifyIntrinsicHeight, not from the bridge.
+  function reportOpenAiHeight() {
+    try {
+      var oa = window.openai;
+      if (oa && typeof oa.notifyIntrinsicHeight === 'function') {
+        oa.notifyIntrinsicHeight(Math.ceil(document.body.getBoundingClientRect().height));
+      }
+    } catch (e) { /* host without the API */ }
+  }
+
+  var resizing = false;
   function autoResize() {
+    if (resizing) return;
+    resizing = true;
     var last = '';
     function report() {
       // Report content size (body), not the iframe viewport.
@@ -116,6 +131,7 @@ var Bridge = (function () {
       if (key === last) return;
       last = key;
       notify('ui/notifications/size-changed', { width: w, height: h });
+      reportOpenAiHeight();
     }
     if (typeof ResizeObserver === 'function') {
       new ResizeObserver(report).observe(document.body);
@@ -144,6 +160,7 @@ var Bridge = (function () {
     on: on,
     initialize: initialize,
     autoResize: autoResize,
+    reportOpenAiHeight: reportOpenAiHeight,
     applyHostContext: applyHostContext
   };
 })();

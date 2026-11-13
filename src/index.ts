@@ -270,6 +270,35 @@ function discoveryBody() {
   };
 }
 
+/**
+ * Log which MCP methods a client calls (method, tool name, ui:// resource, client name).
+ * Never logs arguments or results. Lets an operator see whether a host fetched the
+ * tool list and the widget templates.
+ */
+function logMcpMethods(transport: StreamableHTTPServerTransport): void {
+  const forward = transport.onmessage;
+  transport.onmessage = (message, extra) => {
+    try {
+      const msg = message as { method?: unknown; params?: Record<string, any> };
+      if (typeof msg.method === 'string' && !msg.method.startsWith('notifications/')) {
+        const params = msg.params ?? {};
+        let detail = '';
+        if (msg.method === 'tools/call' && typeof params.name === 'string') {
+          detail = ` tool=${params.name.slice(0, 64)}`;
+        } else if (msg.method === 'resources/read' && typeof params.uri === 'string' && params.uri.startsWith('ui://')) {
+          detail = ` uri=${params.uri.slice(0, 64)}`;
+        } else if (msg.method === 'initialize' && typeof params.clientInfo?.name === 'string') {
+          detail = ` client=${params.clientInfo.name.slice(0, 64)}`;
+        }
+        console.error(`[mcp] v${VERSION} ${msg.method.slice(0, 64)}${detail.replace(/[\r\n]/g, ' ')}`);
+      }
+    } catch {
+      // logging must never break a request
+    }
+    forward?.(message, extra);
+  };
+}
+
 async function handleMcpRequest(
   req: IncomingMessage,
   res: ServerResponse,
@@ -282,6 +311,7 @@ async function handleMcpRequest(
     sessionIdGenerator: undefined,
   });
   await server.connect(transport);
+  logMcpMethods(transport);
   try {
     await transport.handleRequest(req, res);
   } finally {

@@ -375,6 +375,8 @@ const UPLOAD_VIEW_JS = `
   window.addEventListener('openai:set_globals', readOpenAiGlobals);
 
   renderPurpose();
+  // Size the frame right away; the bridge handshake can take seconds or never answer.
+  Bridge.reportOpenAiHeight();
   Bridge.initialize({ name: 'voicelab-upload', version: CONFIG.version })
     .then(function (res) { Bridge.applyHostContext(res.hostContext); })
     .catch(function () { /* host may be ChatGPT-only; window.openai path below */ })
